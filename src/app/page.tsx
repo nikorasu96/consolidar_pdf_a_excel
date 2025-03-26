@@ -1,95 +1,99 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+// src/app/page.tsx
 
+"use client";
+
+import { useState } from "react";
+import FileUpload from "../components/FileUpload";
+import { validatePDFFiles } from "../utils/fileUtils";
+
+/**
+ * Página principal de la aplicación.
+ * Permite al usuario cargar archivos PDF, validarlos y enviarlos al endpoint de conversión.
+ */
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [files, setFiles] = useState<FileList | null>(null);
+  const [loading, setLoading] = useState(false);
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+  // Callback para actualizar el estado de los archivos seleccionados.
+  const handleFileChange = (files: FileList | null) => {
+    setFiles(files);
+  };
+
+  // Función que se ejecuta al enviar el formulario.
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!files || files.length === 0) return;
+
+    // Validación adicional de los archivos.
+    if (!validatePDFFiles(files)) {
+      alert("Uno o más archivos no son válidos.");
+      return;
+    }
+
+    setLoading(true);
+    const formData = new FormData();
+    // Agrega cada archivo PDF al FormData.
+    Array.from(files).forEach((file) => {
+      formData.append("pdf", file);
+    });
+
+    try {
+      // Llama al endpoint de API que se encarga de convertir los PDFs a Excel.
+      const res = await fetch("/api/convert", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        alert("Error procesando los archivos");
+        setLoading(false);
+        return;
+      }
+
+      // Procesa el encabezado para determinar el nombre del archivo Excel a descargar.
+      const contentDisposition = res.headers.get("Content-Disposition") || "";
+      let fileName = "consolidado.xlsx";
+      const matchUTF8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+      const matchSimple = contentDisposition.match(/filename="([^"]+)"/i);
+      if (matchUTF8 && matchUTF8[1]) {
+        fileName = decodeURIComponent(matchUTF8[1]);
+      } else if (matchSimple && matchSimple[1]) {
+        fileName = matchSimple[1];
+      }
+
+      // Crea un blob a partir de la respuesta y simula la descarga del archivo.
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Ocurrió un error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container my-5">
+      <div className="row justify-content-center">
+        <div className="col-12 col-md-8 col-lg-6">
+          <h1 className="text-center mb-4">Consolidar PDFs a Excel</h1>
+          <form onSubmit={handleSubmit}>
+            <FileUpload onFilesChange={handleFileChange} />
+            <div className="d-grid gap-2 mt-3">
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? "Procesando..." : "Convertir"}
+              </button>
+            </div>
+          </form>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
   );
 }

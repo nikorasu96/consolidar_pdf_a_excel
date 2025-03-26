@@ -8,13 +8,17 @@ import PDFParser from "pdf2json";
  * @returns Un objeto que contiene pdfData y el texto extraído de todas las páginas.
  * @throws Error si no se encuentran páginas en el PDF.
  */
-export async function parsePDFBuffer(file: File): Promise<{ pdfData: any; allText: string }> {
+export async function parsePDFBuffer(
+  file: File
+): Promise<{ pdfData: any; allText: string }> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
   const pdfData = await new Promise<any>((resolve, reject) => {
     const pdfParser = new PDFParser();
-    pdfParser.on("pdfParser_dataError", (errData: any) => reject(new Error(errData.parserError)));
+    pdfParser.on("pdfParser_dataError", (errData: any) =>
+      reject(new Error(errData.parserError))
+    );
     pdfParser.on("pdfParser_dataReady", (data: any) => resolve(data));
     pdfParser.parseBuffer(buffer);
   });
@@ -41,7 +45,9 @@ export async function parsePDFBuffer(file: File): Promise<{ pdfData: any; allTex
  * @param file - Archivo PDF a procesar.
  * @returns Un objeto con los datos extraídos y, opcionalmente, un título.
  */
-export async function procesarPDF(file: File): Promise<{ datos: Record<string, string>; titulo?: string }> {
+export async function procesarPDF(
+  file: File
+): Promise<{ datos: Record<string, string>; titulo?: string }> {
   try {
     const { allText } = await parsePDFBuffer(file);
 
@@ -54,7 +60,9 @@ export async function procesarPDF(file: File): Promise<{ datos: Record<string, s
     } else {
       // Caso contrario, usamos el formato original.
       datos = extraerDatos(allText);
-      const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
+      const matchTitulo = allText.match(
+        /^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i
+      );
       if (matchTitulo && matchTitulo[1]) {
         titulo = matchTitulo[1].trim();
       }
@@ -88,15 +96,18 @@ export function extraerDatos(text: string): Record<string, string> {
   return {
     "Fecha de Emisión": buscar(text, /FECHA DE EMISIÓN\s+([0-9A-Z\/]+)/),
     "Nº Correlativo": buscar(text, /N[°º]\s*CORRELATIVO\s+([A-Z0-9\-]+)/),
-    "Código Informe Técnico": buscar(text, /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/),
-    "Patente": buscar(text, /PATENTE\s+([A-Z0-9]+)/),
+    "Código Informe Técnico": buscar(
+      text,
+      /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/
+    ),
+    Patente: buscar(text, /PATENTE\s+([A-Z0-9]+)/),
     "Válido Hasta": buscar(text, /VÁLIDO HASTA\s+([0-9A-Z\/]+)/),
     "Tipo de Vehículo": buscar(text, /TIPO DE VEHÍCULO\s+([A-ZÑ]+)/),
-    "Marca": buscar(text, /MARCA\s+([A-Z]+)/),
-    "Año": buscar(text, /AÑO\s+([0-9]{4})/),
-    "Modelo": buscar(text, /MODELO\s+(.+?)\s+COLOR/),
-    "Color": buscar(text, /COLOR\s+([A-Z]+)/),
-    "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/),
+    Marca: buscar(text, /MARCA\s+([A-Z]+)/),
+    Año: buscar(text, /AÑO\s+([0-9]{4})/),
+    Modelo: buscar(text, /MODELO\s+(.+?)\s+COLOR/),
+    Color: buscar(text, /COLOR\s+([A-Z]+)/),
+    VIN: buscar(text, /VIN\s+([A-Z0-9]+)/),
     "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9 ]+)(?=\s+CÓDIGO)/),
     "Firmado por": buscar(text, /Firmado por:\s+([A-ZÁÉÍÓÚÑ\s]+)/),
   };

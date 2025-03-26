@@ -25,9 +25,8 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
       for (let i = 0; i < files.length; i++) {
         if (!isValidPDF(files[i])) {
           // En caso de error, se muestra un mensaje y se limpia la selección.
-          setError(
-            `El archivo ${files[i].name} no es un PDF válido o excede el tamaño permitido.`
-          );
+          setError(`El archivo ${files[i].name} no es un PDF válido o excede el tamaño permitido.`);
+
           e.target.value = "";
           onFilesChange(null);
           return;

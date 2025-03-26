@@ -1,9 +1,8 @@
-// src/app/api/convert/route.ts
-
 import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { procesarPDF, sanitizarNombre } from "../../../utils/pdfUtils";
 import { generateExcel } from "../../../utils/excelUtils";
+import { isValidPDF } from "../../../utils/fileUtils";
 
 // Especifica que se usará el runtime de Node.js para acceder a APIs nativas de Node.
 export const runtime = "nodejs";
@@ -13,7 +12,8 @@ const limit = pLimit(3);
 
 /**
  * Función que maneja la solicitud POST al endpoint /api/convert.
- * Recibe los archivos PDF, los procesa para extraer datos y genera un archivo Excel consolidado.
+ * Recibe los archivos PDF, los valida en el servidor, los procesa para extraer datos
+ * y genera un archivo Excel consolidado.
  */
 export async function POST(request: Request) {
   try {
@@ -27,7 +27,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Procesa cada archivo PDF de forma concurrente pero limitado a 3 procesos al mismo tiempo.
+    // Validación del lado del servidor: verificar el tipo y tamaño de cada archivo PDF.
+    for (const file of files) {
+      if (!isValidPDF(file)) {
+        return NextResponse.json(
+          { error: `El archivo ${file.name} no es un PDF válido o excede el tamaño permitido.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Procesa cada archivo PDF de forma concurrente, limitado a 3 procesos al mismo tiempo.
     const resultados = await Promise.all(
       files.map((file) => limit(() => procesarPDF(file)))
     );
@@ -43,7 +53,7 @@ export async function POST(request: Request) {
     const nombreArchivo =
       files.length === 1 && tituloExtraido
         ? sanitizarNombre(tituloExtraido)
-        : "CONSOLIDADO_CERTIFICADOS_HOMOLOGADOS";
+        : "CONSOLIDADO_CERTIFICADOS";
 
     // Se genera el archivo Excel a partir de los registros extraídos.
     const { buffer: excelBuffer, encodedName } = await generateExcel(

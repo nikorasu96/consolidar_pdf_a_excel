@@ -5,26 +5,20 @@
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
 import { validatePDFFiles } from "../utils/fileUtils";
+import { saveAs } from "file-saver"; // Importa la función saveAs para descargar archivos
 
-/**
- * Página principal de la aplicación.
- * Permite al usuario cargar archivos PDF, validarlos y enviarlos al endpoint de conversión.
- */
 export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Callback para actualizar el estado de los archivos seleccionados.
   const handleFileChange = (files: FileList | null) => {
     setFiles(files);
   };
 
-  // Función que se ejecuta al enviar el formulario.
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!files || files.length === 0) return;
 
-    // Validación adicional de los archivos.
     if (!validatePDFFiles(files)) {
       alert("Uno o más archivos no son válidos.");
       return;
@@ -32,13 +26,11 @@ export default function Home() {
 
     setLoading(true);
     const formData = new FormData();
-    // Agrega cada archivo PDF al FormData.
     Array.from(files).forEach((file) => {
       formData.append("pdf", file);
     });
 
     try {
-      // Llama al endpoint de API que se encarga de convertir los PDFs a Excel.
       const res = await fetch("/api/convert", {
         method: "POST",
         body: formData,
@@ -50,7 +42,6 @@ export default function Home() {
         return;
       }
 
-      // Procesa el encabezado para determinar el nombre del archivo Excel a descargar.
       const contentDisposition = res.headers.get("Content-Disposition") || "";
       let fileName = "consolidado.xlsx";
       const matchUTF8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -61,16 +52,9 @@ export default function Home() {
         fileName = matchSimple[1];
       }
 
-      // Crea un blob a partir de la respuesta y simula la descarga del archivo.
+      // Descarga el archivo Excel utilizando FileSaver para mejorar la accesibilidad.
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      saveAs(blob, fileName);
     } catch (error) {
       console.error("Error:", error);
       alert("Ocurrió un error");

@@ -3,7 +3,7 @@
 // Se obtiene el tamaño máximo configurado (en bytes) desde la variable de entorno,
 // o se utiliza 5MB por defecto.
 export const MAX_SIZE = process.env.NEXT_PUBLIC_MAX_FILE_SIZE
-  ? parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE)
+  ? parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE, 10)
   : 5 * 1024 * 1024; // 5MB
 
 /**
@@ -16,16 +16,11 @@ export function isValidPDF(file: File): boolean {
 }
 
 /**
- * Función que valida un FileList de archivos PDF.
+ * Función que valida un FileList de archivos PDF utilizando métodos funcionales.
  * Recorre cada archivo y utiliza isValidPDF para verificar su validez.
  * @param files - Lista de archivos a validar.
  * @returns true si todos los archivos son PDF válidos; false si alguno no lo es.
  */
 export function validatePDFFiles(files: FileList): boolean {
-  for (let i = 0; i < files.length; i++) {
-    if (!isValidPDF(files[i])) {
-      return false;
-    }
-  }
-  return true;
+  return Array.from(files).every((file) => isValidPDF(file));
 }

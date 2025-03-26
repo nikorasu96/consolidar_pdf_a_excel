@@ -1,39 +1,85 @@
-// src/utils/pdfUtils.ts
-
 import PDFParser from "pdf2json";
+
+// Definición de tipos para mejorar el tipado del PDF
+
+interface PDFText {
+  R: { T: string }[];
+}
+
+interface PDFPage {
+  Texts: PDFText[];
+}
+
+export interface PDFData {
+  formImage?: {
+    Pages: PDFPage[];
+  };
+  Pages?: PDFPage[];
+}
+
+/**
+ * Función auxiliar para decodificar de forma segura una cadena URI.
+ * Si ocurre un error durante la decodificación, se registra y se retorna la cadena original.
+ * @param encoded - Cadena codificada.
+ * @returns La cadena decodificada o la original en caso de error.
+ */
+function safeDecodeURIComponent(encoded: string): string {
+  try {
+    return decodeURIComponent(encoded);
+  } catch (error) {
+    console.error("Error decodificando cadena:", encoded, error);
+    return encoded; // Retorna la cadena original si no se puede decodificar.
+  }
+}
 
 /**
  * Función auxiliar para parsear un PDF y extraer el contenido.
  * @param file - Archivo PDF a procesar.
  * @returns Un objeto que contiene pdfData y el texto extraído de todas las páginas.
- * @throws Error si no se encuentran páginas en el PDF.
+ * @throws Error si no se encuentran páginas o no se logra extraer texto válido.
  */
 export async function parsePDFBuffer(
   file: File
-): Promise<{ pdfData: any; allText: string }> {
+): Promise<{ pdfData: PDFData; allText: string }> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const pdfData = await new Promise<any>((resolve, reject) => {
+  const pdfData: PDFData = await new Promise<PDFData>((resolve, reject) => {
     const pdfParser = new PDFParser();
     pdfParser.on("pdfParser_dataError", (errData: any) =>
       reject(new Error(errData.parserError))
     );
-    pdfParser.on("pdfParser_dataReady", (data: any) => resolve(data));
+    pdfParser.on("pdfParser_dataReady", (data: PDFData) => resolve(data));
     pdfParser.parseBuffer(buffer);
   });
 
   let allText = "";
+  // Función para extraer texto de una lista de páginas
+  const extractTextFromPages = (pages: PDFPage[]): string => {
+    return pages
+      .map((page) =>
+        page.Texts
+          .map((t) => {
+            // Validación adicional: aseguramos que exista el texto a decodificar
+            if (!t.R || t.R.length === 0 || !t.R[0].T) return "";
+            return safeDecodeURIComponent(t.R[0].T);
+          })
+          .join(" ")
+      )
+      .join(" ");
+  };
+
   if (pdfData.formImage?.Pages) {
-    allText = pdfData.formImage.Pages.map((page: any) =>
-      page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
-    ).join(" ");
+    allText = extractTextFromPages(pdfData.formImage.Pages);
   } else if (pdfData.Pages) {
-    allText = pdfData.Pages.map((page: any) =>
-      page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
-    ).join(" ");
+    allText = extractTextFromPages(pdfData.Pages);
   } else {
     throw new Error("No se encontraron páginas en el PDF");
+  }
+
+  // Validación adicional: verificar que se haya extraído algún texto
+  if (!allText.trim()) {
+    throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
 
   return { pdfData, allText };

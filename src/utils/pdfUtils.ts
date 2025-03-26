@@ -22,21 +22,28 @@ export function buscar(text: string, pattern: RegExp): string {
 export function extraerDatos(text: string): Record<string, string> {
   return {
     "Fecha de Emisión": buscar(text, /FECHA DE EMISIÓN\s+([0-9A-Z\/]+)/),
-    "Nº Correlativo": buscar(text, /Nº CORRELATIVO\s+([A-Z0-9\-]+)/),
-    "Código Informe Técnico": buscar(text, /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/),
-    "Patente": buscar(text, /PATENTE\s+([A-Z0-9\-]+)/),
+    // Se adapta para aceptar N° o Nº y espacios opcionales.
+    "Nº Correlativo": buscar(text, /N[°º]\s*CORRELATIVO\s+([A-Z0-9\-]+)/),
+    "Código Informe Técnico": buscar(
+      text,
+      /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/
+    ),
+    Patente: buscar(text, /PATENTE\s+([A-Z0-9\-]+)/),
     "Válido Hasta": buscar(text, /VÁLIDO HASTA\s+([0-9A-Z\/]+)/),
     "Tipo de Vehículo": buscar(text, /TIPO DE VEHÍCULO\s+([A-ZÑ]+)/),
-    "Marca": buscar(text, /MARCA\s+([A-Z]+)/),
-    "Año": buscar(text, /AÑO\s+([0-9]{4})/),
-    "Modelo": buscar(text, /MODELO\s+(.+?)\s+COLOR/),
-    "Color": buscar(text, /COLOR\s+([A-Z]+)/),
-    "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/),
-    "Nº Motor": buscar(text, /Nº MOTOR\s+([A-Z0-9 ]+)/),
-    "Firmado por": buscar(text, /Firmado por:\s+([A-ZÁÉÍÓÚÑ\s]+)/),
+    Marca: buscar(text, /MARCA\s+([A-Z]+)/),
+    Año: buscar(text, /AÑO\s+([0-9]{4})/),
+    Modelo: buscar(text, /MODELO\s+(.+?)\s+COLOR/),
+    Color: buscar(text, /COLOR\s+([A-Z]+)/),
+    VIN: buscar(text, /VIN\s+([A-Z0-9]+)/),
+    // Se adapta para "Nº MOTOR" o "N° MOTOR" y se restringe hasta antes de "CÓDIGO"
+    "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9 ]+)(?=\s+CÓDIGO)/),
+    "Firmado por": buscar(
+      text,
+      /Firmado por:\s+([A-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ]+)*)(?=\s|$)/
+    ),
   };
 }
-
 /**
  * Función que sanitiza un nombre eliminando acentos y caracteres no permitidos.
  * Esto es útil para generar nombres de archivos seguros para el sistema.
@@ -80,17 +87,13 @@ export async function procesarPDF(file: File): Promise<{
   // Extrae el texto de todas las páginas del PDF.
   let allText = "";
   if (pdfData.formImage?.Pages) {
-    allText = pdfData.formImage.Pages
-      .map((page: any) =>
-        page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
-      )
-      .join(" ");
+    allText = pdfData.formImage.Pages.map((page: any) =>
+      page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
+    ).join(" ");
   } else if (pdfData.Pages) {
-    allText = pdfData.Pages
-      .map((page: any) =>
-        page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
-      )
-      .join(" ");
+    allText = pdfData.Pages.map((page: any) =>
+      page.Texts.map((t: any) => decodeURIComponent(t.R[0].T)).join(" ")
+    ).join(" ");
   } else {
     throw new Error("No se encontraron páginas en el PDF");
   }
@@ -100,7 +103,9 @@ export async function procesarPDF(file: File): Promise<{
 
   // Busca un título opcional en el texto.
   let titulo: string | undefined;
-  const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
+  const matchTitulo = allText.match(
+    /^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i
+  );
   if (matchTitulo && matchTitulo[1]) {
     titulo = matchTitulo[1].trim();
   }

@@ -1,5 +1,7 @@
+// src/utils/pdfUtils.ts
+
 import PDFParser from "pdf2json";
-import logger from "./logger"; // Importamos el logger
+import logger from "./logger";
 
 /**
  * Tipos básicos para pdf2json.
@@ -15,7 +17,6 @@ export interface PDFData {
     Pages: PDFPage[];
   };
   Pages?: PDFPage[];
-  // Otras propiedades que pudiera devolver pdf2json
 }
 
 /**
@@ -79,6 +80,9 @@ export async function parsePDFBuffer(
     throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
 
+  // Log para verificar el contenido exacto extraído (útil para ajustar regex)
+  logger.debug("Texto extraído (allText):", allText);
+
   return { pdfData, allText };
 }
 
@@ -91,7 +95,8 @@ export function buscar(text: string, pattern: RegExp): string | null {
 }
 
 /**
- * Función para extraer datos del formato original (de homologación).
+ * Función para extraer datos del formato de Homologación.
+ * Se mantiene sin cambios la lógica original.
  */
 export function extraerDatos(text: string): Record<string, string> {
   return {
@@ -112,7 +117,8 @@ export function extraerDatos(text: string): Record<string, string> {
 }
 
 /**
- * Función para extraer datos del segundo formato (por ejemplo, Certificado de Emisiones).
+ * Función para extraer datos del formato "Certificado de Emisiones".
+ * Se mantiene sin cambios la lógica original.
  */
 export function extraerDatosEmisiones(text: string): Record<string, string> {
   const obtenerPrimerMatch = (patron: RegExp): string => {
@@ -138,7 +144,6 @@ export function extraerDatosEmisiones(text: string): Record<string, string> {
       datos["Estado"] = parts[1];
     }
   }
-
   let firma = obtenerPrimerMatch(/FIRMA ELECTR[ÓO]NICA(?:\s+AVANZADA)?\s+([\w\s]+)/gi);
   firma = firma.replace(/\s+V$/, "");
   datos["Firma Electrónica"] = firma;
@@ -147,8 +152,8 @@ export function extraerDatosEmisiones(text: string): Record<string, string> {
 }
 
 /**
- * Función para extraer datos del tercer formato (para revisión técnica).
- * Esta es la estructura original que usabas para extraer datos de revisión técnica.
+ * Función para extraer datos del formato de Revisión Técnica (CRT).
+ * Se mantiene sin cambios la lógica original.
  */
 export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<string, string> {
   const capturar = (regex: RegExp): string => {
@@ -157,44 +162,66 @@ export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<st
   };
 
   const datos: Record<string, string> = {};
-
-  // 1) Fecha de Revisión (ej: "FECHA REVISIÓN: 21 MARZO 2025")
   datos["Fecha de Revisión"] = capturar(/FECHA REVISIÓN:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
-
-  // 2) Número de certificado (ej: "NRO: #008106000454")
   datos["Nro"] = capturar(/NRO:\s*#?([\w\-]+)/i);
-
-  // 3) Planta (ej: "PLANTA: AV. XX N°123, COMUNA Y")
   datos["Planta"] = capturar(/PLANTA:\s*(.+?)(?=\s+PLACA\s+PATENTE|FIRMA|$)/i);
-
-  // 4) Placa Patente (ej: "PLACA PATENTE: SKLH20")
   datos["Placa Patente"] = capturar(/PLACA\s+PATENTE:\s*([A-Z0-9]+)/i);
-
-  // 5) Firma Electrónica (ej: "FIRMA ELECTRÓNICA AVANZADA MIGUEL INDO VIDELA")
   datos["Firma Electrónica"] = capturar(/FIRMA ELECTRÓNICA(?:\s+AVANZADA)?\s+(.+?)(?=\n|$)/i);
-
-  // 6) Válido Hasta (ej: "VÁLIDO HASTA: FEBRERO 2027")
   datos["Válido Hasta"] = capturar(/VÁLIDO HASTA:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
-
-  // 7) Nombre del Propietario (ej: "NOMBRE DEL PROPIETARIO: JUAN PÉREZ")
   datos["Nombre del Propietario"] = capturar(/NOMBRE DEL PROPIETARIO:\s*(.+?)(?=\n|$)/i);
-
-  // 8) RUT (ej: "RUT: 20.236.877-5")
   datos["RUT"] = capturar(/RUT:\s*([\d\.]+-[\dkK])\b/);
-
-  // 9) Marca (ej: "MARCA: CHEVROLET")
   datos["Marca"] = capturar(/MARCA:\s*([A-Z0-9]+)/i);
-
-  // 10) Modelo (ej: "MODELO: SAIL")
   datos["Modelo"] = capturar(/MODELO:\s*([A-Z0-9]+)/i);
-
-  // 11) Tipo de Combustible (ej: "TIPO DE COMBUSTIBLE: GASOLINA")
   datos["Tipo de Combustible"] = capturar(/TIPO DE COMBUSTIBLE:\s*([A-Z]+)/i);
-
-  // 12) Sello (ejemplo: "SELLO VERDE")
   datos["Sello"] = text.includes("SELLO VERDE") ? "VERDE" : "";
-
   return datos;
+}
+
+/**
+ * Función para extraer datos del formato SOAP (Seguro Obligatorio).
+ * Se extraen los siguientes campos:
+ *   - INSCRIPCION R.V.M (ej: "LXWJ75-4")
+ *   - Bajo el codigo (ej: "POL420130487")
+ *   - RUT (ej: "97.036.000-k" o "97.036.000-K")
+ *   - RIGE DESDE (ej: "01-04-2025")
+ *   - HASTA (ej: "31-03-2026")
+ *   - POLIZA N° (ej: "629635-M")
+ *   - PRIMA (ej: "5.950")
+ */
+export function extraerDatosSOAP(text: string): Record<string, string> {
+  // Normalizamos saltos de línea para unir todo en una sola cadena
+  const t = text.replace(/\r?\n|\r/g, " ");
+  return {
+    "INSCRIPCION R.V.M": buscar(
+      t,
+      // Permite que entre "INSCRIPCION" y "R" haya espacios, y admite "R", "V" y "M" con o sin puntos y con espacios opcionales.
+      /INSCRIPCION\s+R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*[:\s-]+\s*([A-Z0-9\-]+)/i
+    ) || "",
+    "Bajo el codigo": buscar(
+      t,
+      /Bajo\s+el\s+c[óo]digo\s*[:\s-]+\s*([A-Z0-9]+)/i
+    ) || "",
+    "RUT": buscar(
+      t,
+      /RUT\s*[:\s-]+\s*([\d\.]+-[kK])/i
+    ) || "",
+    "RIGE DESDE": buscar(
+      t,
+      /RIGE\s+DESDE\s*[:\s-]+\s*(\d{2}-\d{2}-\d{4})/i
+    ) || "",
+    "HASTA": buscar(
+      t,
+      /HAST\s*A?\s*[:\s-]+\s*(\d{2}-\d{2}-\d{4})/i
+    ) || "",
+    "POLIZA N°": buscar(
+      t,
+      /POLIZA\s*N[°º]?\s*[:\s-]+\s*([\w\-]+)/i
+    ) || "",
+    "PRIMA": buscar(
+      t,
+      /PRIMA\s*[:\s-]+\s*([\d\.,]+)/i
+    ) || "",
+  };
 }
 
 /**
@@ -211,18 +238,13 @@ export function sanitizarNombre(str: string): string {
 }
 
 /**
- * Procesa el PDF y decide qué función de extracción usar según el contenido y el formato solicitado.
- * - Si pdfFormat es "CERTIFICADO_DE_HOMOLOGACION": se requiere que el texto incluya "CERTIFICADO DE HOMOLOGACIÓN".
- * - Si pdfFormat es "CRT": se requiere que el texto incluya "CERTIFICADO DE REVISIÓN TÉCNICA" o "CRT".
- *   Se usa la lógica original:
- *     * Si el texto incluye "CERTIFICADO DE REVISIÓN TÉCNICA" y "NOMBRE DEL PROPIETARIO", se usa extraerDatosRevisionTecnicaNuevoFormato.
- *     * Si no, pero incluye "FECHA REVISIÓN" y "PLANTA:", se usa extraerDatosEmisiones.
- *     * En caso contrario, se lanza error.
- * Si no se especifica formato, se usa la lógica original.
+ * Procesa el PDF y selecciona la función de extracción según el pdfFormat.
  */
-export async function procesarPDF(file: File, pdfFormat?: string): Promise<{ datos: Record<string, string>; titulo?: string }> {
+export async function procesarPDF(
+  file: File,
+  pdfFormat?: string
+): Promise<{ datos: Record<string, string>; titulo?: string }> {
   const { allText } = await parsePDFBuffer(file);
-
   let datos: Record<string, string> = {};
   let titulo: string | undefined;
 
@@ -243,6 +265,18 @@ export async function procesarPDF(file: File, pdfFormat?: string): Promise<{ dat
     } else {
       throw new Error("El archivo no corresponde a la estructura de CRT");
     }
+  } else if (pdfFormat === "SOAP") {
+    if (
+      !(
+        allText.includes("SEGURO OBLIGATORIO") ||
+        allText.includes("SOAP") ||
+        allText.includes("INSCRIPCION R.V.M") ||
+        allText.includes("POLIZA")
+      )
+    ) {
+      throw new Error("El archivo no corresponde a la estructura SOAP (Seguro Obligatorio).");
+    }
+    datos = extraerDatosSOAP(allText);
   } else {
     if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
       datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
@@ -256,6 +290,5 @@ export async function procesarPDF(file: File, pdfFormat?: string): Promise<{ dat
       }
     }
   }
-
   return { datos, titulo };
 }

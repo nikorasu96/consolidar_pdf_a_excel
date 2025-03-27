@@ -25,28 +25,14 @@ export default function Home() {
     Array<{ fileName: string; count: number; error: string }>
   >([]);
   const [formatMessage, setFormatMessage] = useState("");
-
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Estado para el formato de PDF a procesar.
   const [pdfFormat, setPdfFormat] = useState("CERTIFICADO_DE_HOMOLOGACION");
 
-  // NUEVO: un estado booleano que controla la limpieza del FileUpload
+  // Estado para limpiar el input FileUpload
   const [clearFileInput, setClearFileInput] = useState(false);
 
-  const handleFileChange = (files: FileList | null) => {
-    setFiles(files);
-    // Cada vez que se cambien los archivos, se limpian los resultados
-    resetStates();
-  };
-
-  const handleFormatChange = (format: string) => {
-    setPdfFormat(format);
-    resetStates();
-  };
-
-  // Función para resetear los estados, pero NO limpia el input en sí
-  const resetStates = () => {
+  const resetResults = () => {
     setPreviewData(null);
     setExcelBlob(null);
     setFileName("consolidado.xlsx");
@@ -57,23 +43,26 @@ export default function Home() {
     setGroupedFallidos([]);
     setFormatMessage("");
     setApiError(null);
-    setLoading(false);
     setIsExpanded(false);
   };
 
-  // Función que limpia TODO, incluido el FileUpload
-  const handleLimpiar = () => {
-    // 1) Indicamos que FileUpload debe limpiarse
-    setClearFileInput(true);
-    // 2) Un pequeño truco: tras un micro-tick, volvemos a false
-    // para que en el próximo render, si se presiona "Limpiar" otra vez,
-    // funcione igual.
-    setTimeout(() => setClearFileInput(false), 0);
+  const handleFileChange = (files: FileList | null) => {
+    setFiles(files);
+    resetResults();
+  };
 
-    // 3) Reseteamos el resto de estados
+  const handleFormatChange = (format: string) => {
+    setPdfFormat(format);
+    resetResults();
+  };
+
+  // Función para limpiar el FileUpload y todos los estados
+  const handleLimpiar = () => {
+    setClearFileInput(true);
+    setTimeout(() => setClearFileInput(false), 0);
     setFiles(null);
-    resetStates();
-    setPdfFormat("CERTIFICADO_DE_HOMOLOGACION"); // Opcional
+    resetResults();
+    setPdfFormat("CERTIFICADO_DE_HOMOLOGACION");
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -105,7 +94,6 @@ export default function Home() {
         return;
       }
 
-      // Si data.error existe con status 200, lo mostramos
       if (data.error) {
         setApiError(data.error);
       }
@@ -156,9 +144,7 @@ export default function Home() {
         <div className="col-12 col-md-8 col-lg-6">
           <h1 className="text-center mb-4">Consolidar PDFs a Excel</h1>
           <form onSubmit={handleSubmit}>
-            {/* Pasamos clearTrigger para que FileUpload sepa cuándo limpiarse */}
             <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
-
             <div className="mb-3">
               <label className="form-label">Selecciona el formato de PDF:</label>
               <div className="btn-group">
@@ -175,43 +161,36 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  className={
-                    pdfFormat === "CRT"
-                      ? "btn btn-primary"
-                      : "btn btn-outline-primary"
-                  }
+                  className={pdfFormat === "CRT" ? "btn btn-primary" : "btn btn-outline-primary"}
                   onClick={() => handleFormatChange("CRT")}
                 >
                   Certificado de Revisión Técnica (CRT)
                 </button>
+                <button
+                  type="button"
+                  className={pdfFormat === "SOAP" ? "btn btn-primary" : "btn btn-outline-primary"}
+                  onClick={() => handleFormatChange("SOAP")}
+                >
+                  SOAP (Seguro Obligatorio)
+                </button>
               </div>
             </div>
-
             <div className="d-flex gap-2 mt-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? "Procesando..." : "Convertir"}
               </button>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleLimpiar}
-                disabled={loading}
-              >
+              <button type="button" className="btn btn-secondary" onClick={handleLimpiar} disabled={loading}>
                 Limpiar
               </button>
             </div>
           </form>
 
           {apiError && (
-            <div className="mt-4 alert alert-warning">
-              {apiError}
-            </div>
+            <div className="mt-4 alert alert-warning">{apiError}</div>
           )}
 
           {formatMessage && (
-            <div className="mt-4 alert alert-info">
-              {formatMessage}
-            </div>
+            <div className="mt-4 alert alert-info">{formatMessage}</div>
           )}
 
           {previewData && (

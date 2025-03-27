@@ -1,18 +1,25 @@
 // src/app/page.tsx
-
 "use client";
 
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
 import { validatePDFFiles } from "../utils/fileUtils";
-import { saveAs } from "file-saver"; // Importa la función saveAs para descargar archivos
+import { saveAs } from "file-saver";
+import readXlsxFile from "read-excel-file";
 
 export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<any[][] | null>(null);
+  const [excelBlob, setExcelBlob] = useState<Blob | null>(null);
+  const [fileName, setFileName] = useState<string>("consolidado.xlsx");
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleFileChange = (files: FileList | null) => {
     setFiles(files);
+    // Reinicia la vista previa al cambiar los archivos
+    setPreviewData(null);
+    setExcelBlob(null);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -42,24 +49,36 @@ export default function Home() {
         return;
       }
 
+      // Extracción robusta del nombre de archivo desde el header
       const contentDisposition = res.headers.get("Content-Disposition") || "";
-      let fileName = "consolidado.xlsx";
+      let extractedFileName = "consolidado.xlsx";
       const matchUTF8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
       const matchSimple = contentDisposition.match(/filename="([^"]+)"/i);
       if (matchUTF8 && matchUTF8[1]) {
-        fileName = decodeURIComponent(matchUTF8[1]);
+        extractedFileName = decodeURIComponent(matchUTF8[1]);
       } else if (matchSimple && matchSimple[1]) {
-        fileName = matchSimple[1];
+        extractedFileName = matchSimple[1];
       }
+      setFileName(extractedFileName);
 
-      // Descarga el archivo Excel utilizando FileSaver para mejorar la accesibilidad.
+      // Obtiene el blob del Excel
       const blob = await res.blob();
-      saveAs(blob, fileName);
+      setExcelBlob(blob);
+
+      // Utiliza readXlsxFile para parsear el blob y obtener los datos en formato de array
+      const rows = await readXlsxFile(blob);
+      setPreviewData(rows);
     } catch (error) {
       console.error("Error:", error);
       alert("Ocurrió un error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (excelBlob) {
+      saveAs(excelBlob, fileName);
     }
   };
 
@@ -76,8 +95,100 @@ export default function Home() {
               </button>
             </div>
           </form>
+          {previewData && (
+            <div className="mt-5">
+              <h2 className="mb-3">Vista Previa del Excel</h2>
+              <div className="table-responsive" style={{ maxHeight: "500px", overflowY: "auto" }}>
+                <table className="table table-bordered table-sm">
+                  <thead>
+                    <tr>
+                      {previewData[0] &&
+                        previewData[0].map((header, index) => (
+                          <th key={index}>{header}</th>
+                        ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.slice(1).map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {row.map((cell, cellIndex) => (
+                          <td key={cellIndex}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="d-flex justify-content-between align-items-center mt-3">
+                <button className="btn btn-outline-secondary" onClick={() => setIsExpanded(true)}>
+                  Expandir Vista
+                </button>
+                <button className="btn btn-success" onClick={handleDownload}>
+                  Descargar Excel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Modal de vista expandida */}
+      {isExpanded && previewData && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            zIndex: 10000,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            className="bg-white p-4"
+            style={{
+              width: "90%",
+              height: "90%",
+              overflow: "auto",
+              position: "relative",
+            }}
+          >
+            <button
+              className="btn btn-danger position-absolute"
+              style={{ top: 10, right: 10 }}
+              onClick={() => setIsExpanded(false)}
+            >
+              Cerrar Vista
+            </button>
+            <h2 className="mb-3">Vista Expandida del Excel</h2>
+            <div className="table-responsive">
+              <table className="table table-bordered table-sm">
+                <thead>
+                  <tr>
+                    {previewData[0] &&
+                      previewData[0].map((header, index) => (
+                        <th key={index}>{header}</th>
+                      ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewData.slice(1).map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {row.map((cell, cellIndex) => (
+                        <td key={cellIndex}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

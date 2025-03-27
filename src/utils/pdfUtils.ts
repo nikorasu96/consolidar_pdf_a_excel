@@ -1,42 +1,40 @@
+// src/utils/pdfUtils.ts
+
 import PDFParser from "pdf2json";
 
-// Definición de tipos para mejorar el tipado del PDF
-
+/**
+ * Tipos básicos para pdf2json.
+ */
 interface PDFText {
   R: { T: string }[];
 }
-
 interface PDFPage {
   Texts: PDFText[];
 }
-
 export interface PDFData {
   formImage?: {
     Pages: PDFPage[];
   };
   Pages?: PDFPage[];
+  // Otras propiedades que pudiera devolver pdf2json
 }
 
 /**
- * Función auxiliar para decodificar de forma segura una cadena URI.
- * Si ocurre un error durante la decodificación, se registra y se retorna la cadena original.
- * @param encoded - Cadena codificada.
- * @returns La cadena decodificada o la original en caso de error.
+ * Decodifica un string de forma segura.
  */
 function safeDecodeURIComponent(encoded: string): string {
   try {
     return decodeURIComponent(encoded);
   } catch (error) {
     console.error("Error decodificando cadena:", encoded, error);
-    return encoded; // Retorna la cadena original si no se puede decodificar.
+    return encoded;
   }
 }
 
 /**
- * Función auxiliar para parsear un PDF y extraer el contenido.
- * @param file - Archivo PDF a procesar.
- * @returns Un objeto que contiene pdfData y el texto extraído de todas las páginas.
- * @throws Error si no se encuentran páginas o no se logra extraer texto válido.
+ * Parsea el PDF usando pdf2json y retorna:
+ *  - pdfData: objeto interno
+ *  - allText: texto concatenado extraído de las páginas
  */
 export async function parsePDFBuffer(
   file: File
@@ -44,24 +42,27 @@ export async function parsePDFBuffer(
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  // Parseo del PDF con pdf2json
   const pdfData: PDFData = await new Promise<PDFData>((resolve, reject) => {
     const pdfParser = new PDFParser();
-    pdfParser.on("pdfParser_dataError", (errData: any) =>
-      reject(new Error(errData.parserError))
-    );
+    pdfParser.on("pdfParser_dataError", (errData: any) => {
+      console.error("Error en pdfParser_dataError:", errData);
+      reject(new Error("Error al parsear el PDF: " + errData.parserError));
+    });
     pdfParser.on("pdfParser_dataReady", (data: PDFData) => resolve(data));
     pdfParser.parseBuffer(buffer);
   });
 
+  // Imprime las claves del objeto pdfData para depuración
+  console.log("Estructura de pdfData:", Object.keys(pdfData));
+
   let allText = "";
-  // Función para extraer texto de una lista de páginas
   const extractTextFromPages = (pages: PDFPage[]): string => {
     return pages
       .map((page) =>
         page.Texts
           .map((t) => {
-            // Validación adicional: aseguramos que exista el texto a decodificar
-            if (!t.R || t.R.length === 0 || !t.R[0].T) return "";
+            if (!t.R || t.R.length === 0 || !t.R[0]?.T) return "";
             return safeDecodeURIComponent(t.R[0].T);
           })
           .join(" ")
@@ -69,15 +70,15 @@ export async function parsePDFBuffer(
       .join(" ");
   };
 
-  if (pdfData.formImage?.Pages) {
+  // Intentamos extraer el texto de las propiedades conocidas
+  if (pdfData.formImage && pdfData.formImage.Pages) {
     allText = extractTextFromPages(pdfData.formImage.Pages);
   } else if (pdfData.Pages) {
     allText = extractTextFromPages(pdfData.Pages);
-  } else {
-    throw new Error("No se encontraron páginas en el PDF");
+  } else if ((pdfData as any)["RawText"]) {
+    allText = (pdfData as any)["RawText"];
   }
 
-  // Validación adicional: verificar que se haya extraído algún texto
   if (!allText.trim()) {
     throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
@@ -86,103 +87,52 @@ export async function parsePDFBuffer(
 }
 
 /**
- * Función para extraer datos del PDF utilizando diferentes formatos.
- * Si detecta "FECHA REVISIÓN" y "PLANTA:" usa el nuevo formato, de lo contrario usa el formato original.
- * @param file - Archivo PDF a procesar.
- * @returns Un objeto con los datos extraídos y, opcionalmente, un título.
+ * Retorna el primer grupo de la expresión 'pattern', o null si no hay coincidencia.
  */
-export async function procesarPDF(
-  file: File
-): Promise<{ datos: Record<string, string>; titulo?: string }> {
-  try {
-    const { allText } = await parsePDFBuffer(file);
-
-    let datos: Record<string, string> = {};
-    let titulo: string | undefined;
-
-    // Si detectamos "FECHA REVISIÓN" y "PLANTA:", usamos el nuevo formato.
-    if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
-      datos = extraerDatosRevision(allText);
-    } else {
-      // Caso contrario, usamos el formato original.
-      datos = extraerDatos(allText);
-      const matchTitulo = allText.match(
-        /^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i
-      );
-      if (matchTitulo && matchTitulo[1]) {
-        titulo = matchTitulo[1].trim();
-      }
-    }
-
-    return { datos, titulo };
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      throw new Error("Error procesando el PDF: " + error.message);
-    } else {
-      throw new Error("Error procesando el PDF: " + String(error));
-    }
-  }
-}
-
-/**
- * Función auxiliar que busca un patrón en un texto y devuelve el primer grupo de captura.
- * @param text - Texto en el que se realizará la búsqueda.
- * @param pattern - Expresión regular que define el patrón.
- * @returns El valor encontrado o una cadena vacía si no se encuentra coincidencia.
- */
-export function buscar(text: string, pattern: RegExp): string {
+export function buscar(text: string, pattern: RegExp): string | null {
   const match = text.match(pattern);
-  return match && match[1] ? match[1].trim() : "";
+  return match && match[1] ? match[1].trim() : null;
 }
 
 /**
- * Función para extraer campos de interés del texto extraído de un PDF (formato original).
+ * Función para extraer datos del formato original (Primer formato).
  */
 export function extraerDatos(text: string): Record<string, string> {
   return {
-    "Fecha de Emisión": buscar(text, /FECHA DE EMISIÓN\s+([0-9A-Z\/]+)/),
-    "Nº Correlativo": buscar(text, /N[°º]\s*CORRELATIVO\s+([A-Z0-9\-]+)/),
-    "Código Informe Técnico": buscar(
-      text,
-      /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/
-    ),
-    Patente: buscar(text, /PATENTE\s+([A-Z0-9]+)/),
-    "Válido Hasta": buscar(text, /VÁLIDO HASTA\s+([0-9A-Z\/]+)/),
-    "Tipo de Vehículo": buscar(text, /TIPO DE VEHÍCULO\s+([A-ZÑ]+)/),
-    Marca: buscar(text, /MARCA\s+([A-Z]+)/),
-    Año: buscar(text, /AÑO\s+([0-9]{4})/),
-    Modelo: buscar(text, /MODELO\s+(.+?)\s+COLOR/),
-    Color: buscar(text, /COLOR\s+([A-Z]+)/),
-    VIN: buscar(text, /VIN\s+([A-Z0-9]+)/),
-    "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9 ]+)(?=\s+CÓDIGO)/),
-    "Firmado por": buscar(text, /Firmado por:\s+([A-ZÁÉÍÓÚÑ\s]+)/),
+    "Fecha de Emisión": buscar(text, /FECHA DE EMISIÓN\s+([0-9A-Z\/]+)/i) || "",
+    "Nº Correlativo": buscar(text, /N[°º]\s*CORRELATIVO\s+([A-Z0-9\-]+)/i) || "",
+    "Código Informe Técnico": buscar(text, /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/i) || "",
+    // Se actualiza la expresión regular para capturar guiones en la patente (ej: SCBY-24)
+    "Patente": buscar(text, /PATENTE\s+([A-Z0-9\-]+)/i) || "",
+    "Válido Hasta": buscar(text, /VÁLIDO HASTA\s+([0-9A-Z\/]+)/i) || "",
+    "Tipo de Vehículo": buscar(text, /TIPO DE VEHÍCULO\s+([A-ZÑ]+)/i) || "",
+    "Marca": buscar(text, /MARCA\s+([A-Z]+)/i) || "",
+    "Año": buscar(text, /AÑO\s+([0-9]{4})/i) || "",
+    "Modelo": buscar(text, /MODELO\s+(.+?)[ \t]+COLOR/i) || "",
+    "Color": buscar(text, /COLOR\s+([A-Z]+)/i) || "",
+    "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/i) || "",
+    // Se permite capturar letras, dígitos y espacios opcionales para el Nº Motor (ej: 4N15 UJB3679)
+    "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "",
+    "Firmado por": buscar(text, /Firmado por:\s+(.+?)(?=\s+AUDITORÍA|\r?\n|$)/i) || "",
   };
 }
 
 /**
- * Función para extraer de forma única los datos para el nuevo formato.
+ * Función para extraer datos del segundo formato (por ejemplo, Certificado de Emisiones).
  */
-export function extraerDatosRevision(text: string): Record<string, string> {
+export function extraerDatosEmisiones(text: string): Record<string, string> {
   const obtenerPrimerMatch = (patron: RegExp): string => {
     const matches = [...text.matchAll(patron)].map((m) => m[1]?.trim() || "");
     return matches.length > 0 ? matches[0] : "";
   };
 
   const datos: Record<string, string> = {};
-
-  // 1. Fecha de Revisión
-  datos["Fecha de Revisión"] = obtenerPrimerMatch(
-    /FECHA REVISI[ÓO]N:\s*([\d]{1,2}\s+[A-Z]+\s+\d{4})/gi
-  );
-
-  // 2. Planta
+  datos["Fecha de Revisión"] = obtenerPrimerMatch(/FECHA REVISI[ÓO]N:\s*([\d]{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4})/gi);
   datos["Planta"] = obtenerPrimerMatch(/PLANTA:\s*([A-Z0-9\-]+)/gi);
 
-  // 3. Placa Patente y Estado
   const rawPlacaEstado = obtenerPrimerMatch(/PLACA PATENTE\s+([\w\d\s\-]+)/gi);
   if (rawPlacaEstado) {
     let parts = rawPlacaEstado.split(/\s+/).filter(Boolean);
-    // Elimina tokens "FIRMA"/"ELECTR" si los hubiera
     parts = parts.filter((p) => {
       const upper = p.toUpperCase();
       return !upper.includes("FIRMA") && !upper.includes("ELECTR");
@@ -195,32 +145,99 @@ export function extraerDatosRevision(text: string): Record<string, string> {
     }
   }
 
-  // 4. Firma Electrónica
-  let firma = obtenerPrimerMatch(
-    /FIRMA ELECTR[ÓO]NICA(?:\s+AVANZADA)?\s+([\w\s]+)/gi
-  );
-  // Remueve " V" al final si aparece de forma aislada
+  let firma = obtenerPrimerMatch(/FIRMA ELECTR[ÓO]NICA(?:\s+AVANZADA)?\s+([\w\s]+)/gi);
   firma = firma.replace(/\s+V$/, "");
   datos["Firma Electrónica"] = firma;
+  datos["Válido hasta"] = obtenerPrimerMatch(/VÁLIDO HASTA\s*(?:FECHA REVISIÓN:\s*[\d]{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4}\s+)?([\w]+\s+\d{4})/gi);
+  return datos;
+}
 
-  // 5. Válido hasta
-  datos["Válido hasta"] = obtenerPrimerMatch(
-    /VÁLIDO HASTA\s*(?:FECHA REVISIÓN:\s*[\d]{1,2}\s+[A-Z]+\s+\d{4}\s+)?([\w]+\s+\d{4})/gi
-  );
+/**
+ * Función para extraer datos del nuevo formato (tercer formato).
+ * Se asume que se extraen campos similares al segundo formato.
+ */
+export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<string, string> {
+  const capturar = (regex: RegExp): string => {
+    const match = text.match(regex);
+    return match && match[1] ? match[1].trim() : "";
+  };
+
+  const datos: Record<string, string> = {};
+
+  // 1) Fecha de Revisión (ej: "FECHA REVISIÓN: 21 MARZO 2025")
+  datos["Fecha de Revisión"] = capturar(/FECHA\s+REVISI[ÓO]N:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
+
+  // 2) Número de certificado (ej: "NRO: #008106000454")
+  datos["Nro"] = capturar(/NRO:\s*#?([\w\-]+)/i);
+
+  // 3) Planta (ej: "PLANTA: AV. XX N°123, COMUNA Y")
+  datos["Planta"] = capturar(/PLANTA:\s*(.+?)(?=\s+PLACA\s+PATENTE|FIRMA|$)/i);
+
+  // 4) Placa Patente (ej: "PLACA PATENTE: SKLH20")
+  datos["Placa Patente"] = capturar(/PLACA\s+PATENTE:\s*([A-Z0-9]+)/i);
+
+  // 5) Firma Electrónica (ej: "FIRMA ELECTRÓNICA AVANZADA MIGUEL INDO VIDELA")
+  datos["Firma Electrónica"] = capturar(/FIRMA\s+ELECTR[ÓO]NICA(?:\s+AVANZADA)?\s+(.+?)(?=\n|$)/i);
+
+  // 6) Válido Hasta (ej: "VÁLIDO HASTA: FEBRERO 2027")
+  datos["Válido Hasta"] = capturar(/V[ÁA]LIDO\s+HASTA:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
+
+  // 7) Nombre del Propietario (ej: "NOMBRE DEL PROPIETARIO: JUAN PÉREZ")
+  datos["Nombre del Propietario"] = capturar(/NOMBRE\s+DEL\s+PROPIETARIO:\s*(.+?)(?=\n|$)/i);
+
+  // 8) RUT (ej: "RUT: 20.236.877-5")
+  datos["RUT"] = capturar(/RUT:\s*([\d\.]+-[\dkK])\b/);
+
+  // 9) Marca (ej: "MARCA: CHEVROLET")
+  datos["Marca"] = capturar(/MARCA\s*:\s*([A-Z0-9]+)/i);
+
+  // 10) Modelo (ej: "MODELO: SAIL")
+  datos["Modelo"] = capturar(/MODELO\s*:\s*([A-Z0-9]+)/i);
+
+  // 11) Tipo de Combustible (ej: "TIPO DE COMBUSTIBLE: GASOLINA")
+  datos["Tipo de Combustible"] = capturar(/TIPO\s+DE\s+COMBUSTIBLE:\s*([A-Z]+)/i);
+
+  // 12) Sello (ejemplo: "SELLO VERDE")
+  datos["Sello"] = text.includes("SELLO VERDE") ? "VERDE" : "";
 
   return datos;
 }
 
 /**
- * Función que sanitiza un nombre eliminando acentos y caracteres no permitidos.
- * Esto es útil para generar nombres de archivos seguros para el sistema.
- * @param str - Cadena a sanitizar.
- * @returns La cadena sanitizada.
+ * Limpia acentos, caracteres no permitidos, y quita " A" al final.
  */
 export function sanitizarNombre(str: string): string {
-  return str
+  let sanitized = str
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // elimina acentos
-    .replace(/[^\p{L}\p{N}\s\-_().]/gu, "_") // caracteres no permitidos
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s\-_().]/gu, "_")
     .trim();
+
+  sanitized = sanitized.replace(/\s+A$/, "");
+  return sanitized;
+}
+
+/**
+ * Procesa el PDF y decide qué función de extracción usar según el contenido.
+ */
+export async function procesarPDF(file: File): Promise<{ datos: Record<string, string>; titulo?: string }> {
+  const { allText } = await parsePDFBuffer(file);
+
+  let datos: Record<string, string> = {};
+  let titulo: string | undefined;
+
+  // Heurísticas para detectar el formato:
+  if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
+    datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
+  } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
+    datos = extraerDatosEmisiones(allText);
+  } else {
+    datos = extraerDatos(allText);
+    const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
+    if (matchTitulo && matchTitulo[1]) {
+      titulo = matchTitulo[1].trim();
+    }
+  }
+
+  return { datos, titulo };
 }

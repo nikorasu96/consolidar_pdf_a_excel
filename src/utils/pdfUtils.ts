@@ -1,5 +1,3 @@
-// src/utils/pdfUtils.ts
-
 import PDFParser from "pdf2json";
 import logger from "./logger"; // Importamos el logger
 
@@ -43,7 +41,6 @@ export async function parsePDFBuffer(
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Parseo del PDF con pdf2json
   const pdfData: PDFData = await new Promise<PDFData>((resolve, reject) => {
     const pdfParser = new PDFParser();
     pdfParser.on("pdfParser_dataError", (errData: any) => {
@@ -54,7 +51,6 @@ export async function parsePDFBuffer(
     pdfParser.parseBuffer(buffer);
   });
 
-  // Log de depuración para ver la estructura del pdfData
   logger.debug("Estructura de pdfData:", Object.keys(pdfData));
 
   let allText = "";
@@ -71,7 +67,6 @@ export async function parsePDFBuffer(
       .join(" ");
   };
 
-  // Intentamos extraer el texto de las propiedades conocidas
   if (pdfData.formImage && pdfData.formImage.Pages) {
     allText = extractTextFromPages(pdfData.formImage.Pages);
   } else if (pdfData.Pages) {
@@ -96,14 +91,13 @@ export function buscar(text: string, pattern: RegExp): string | null {
 }
 
 /**
- * Función para extraer datos del formato original (Primer formato).
+ * Función para extraer datos del formato original (de homologación).
  */
 export function extraerDatos(text: string): Record<string, string> {
   return {
     "Fecha de Emisión": buscar(text, /FECHA DE EMISIÓN\s+([0-9A-Z\/]+)/i) || "",
     "Nº Correlativo": buscar(text, /N[°º]\s*CORRELATIVO\s+([A-Z0-9\-]+)/i) || "",
     "Código Informe Técnico": buscar(text, /CÓDIGO DE INFORME TÉCNICO\s+([A-Z0-9\-]+)/i) || "",
-    // Se actualiza la expresión regular para capturar guiones en la patente (ej: SCBY-24)
     "Patente": buscar(text, /PATENTE\s+([A-Z0-9\-]+)/i) || "",
     "Válido Hasta": buscar(text, /VÁLIDO HASTA\s+([0-9A-Z\/]+)/i) || "",
     "Tipo de Vehículo": buscar(text, /TIPO DE VEHÍCULO\s+([A-ZÑ]+)/i) || "",
@@ -112,7 +106,6 @@ export function extraerDatos(text: string): Record<string, string> {
     "Modelo": buscar(text, /MODELO\s+(.+?)[ \t]+COLOR/i) || "",
     "Color": buscar(text, /COLOR\s+([A-Z]+)/i) || "",
     "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/i) || "",
-    // Se permite capturar letras, dígitos y espacios opcionales para el Nº Motor (ej: 4N15 UJB3679)
     "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "",
     "Firmado por": buscar(text, /Firmado por:\s+(.+?)(?=\s+AUDITORÍA|\r?\n|$)/i) || "",
   };
@@ -154,8 +147,8 @@ export function extraerDatosEmisiones(text: string): Record<string, string> {
 }
 
 /**
- * Función para extraer datos del nuevo formato (tercer formato).
- * Se asume que se extraen campos similares al segundo formato.
+ * Función para extraer datos del tercer formato (para revisión técnica).
+ * Esta es la estructura original que usabas para extraer datos de revisión técnica.
  */
 export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<string, string> {
   const capturar = (regex: RegExp): string => {
@@ -166,7 +159,7 @@ export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<st
   const datos: Record<string, string> = {};
 
   // 1) Fecha de Revisión (ej: "FECHA REVISIÓN: 21 MARZO 2025")
-  datos["Fecha de Revisión"] = capturar(/FECHA\s+REVISI[ÓO]N:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
+  datos["Fecha de Revisión"] = capturar(/FECHA REVISIÓN:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
 
   // 2) Número de certificado (ej: "NRO: #008106000454")
   datos["Nro"] = capturar(/NRO:\s*#?([\w\-]+)/i);
@@ -178,25 +171,25 @@ export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<st
   datos["Placa Patente"] = capturar(/PLACA\s+PATENTE:\s*([A-Z0-9]+)/i);
 
   // 5) Firma Electrónica (ej: "FIRMA ELECTRÓNICA AVANZADA MIGUEL INDO VIDELA")
-  datos["Firma Electrónica"] = capturar(/FIRMA\s+ELECTR[ÓO]NICA(?:\s+AVANZADA)?\s+(.+?)(?=\n|$)/i);
+  datos["Firma Electrónica"] = capturar(/FIRMA ELECTRÓNICA(?:\s+AVANZADA)?\s+(.+?)(?=\n|$)/i);
 
   // 6) Válido Hasta (ej: "VÁLIDO HASTA: FEBRERO 2027")
-  datos["Válido Hasta"] = capturar(/V[ÁA]LIDO\s+HASTA:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
+  datos["Válido Hasta"] = capturar(/VÁLIDO HASTA:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
 
   // 7) Nombre del Propietario (ej: "NOMBRE DEL PROPIETARIO: JUAN PÉREZ")
-  datos["Nombre del Propietario"] = capturar(/NOMBRE\s+DEL\s+PROPIETARIO:\s*(.+?)(?=\n|$)/i);
+  datos["Nombre del Propietario"] = capturar(/NOMBRE DEL PROPIETARIO:\s*(.+?)(?=\n|$)/i);
 
   // 8) RUT (ej: "RUT: 20.236.877-5")
   datos["RUT"] = capturar(/RUT:\s*([\d\.]+-[\dkK])\b/);
 
   // 9) Marca (ej: "MARCA: CHEVROLET")
-  datos["Marca"] = capturar(/MARCA\s*:\s*([A-Z0-9]+)/i);
+  datos["Marca"] = capturar(/MARCA:\s*([A-Z0-9]+)/i);
 
   // 10) Modelo (ej: "MODELO: SAIL")
-  datos["Modelo"] = capturar(/MODELO\s*:\s*([A-Z0-9]+)/i);
+  datos["Modelo"] = capturar(/MODELO:\s*([A-Z0-9]+)/i);
 
   // 11) Tipo de Combustible (ej: "TIPO DE COMBUSTIBLE: GASOLINA")
-  datos["Tipo de Combustible"] = capturar(/TIPO\s+DE\s+COMBUSTIBLE:\s*([A-Z]+)/i);
+  datos["Tipo de Combustible"] = capturar(/TIPO DE COMBUSTIBLE:\s*([A-Z]+)/i);
 
   // 12) Sello (ejemplo: "SELLO VERDE")
   datos["Sello"] = text.includes("SELLO VERDE") ? "VERDE" : "";
@@ -205,7 +198,7 @@ export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<st
 }
 
 /**
- * Limpia acentos, caracteres no permitidos, y quita " A" al final.
+ * Limpia acentos, caracteres no permitidos y quita " A" al final.
  */
 export function sanitizarNombre(str: string): string {
   let sanitized = str
@@ -213,30 +206,54 @@ export function sanitizarNombre(str: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\p{L}\p{N}\s\-_().]/gu, "_")
     .trim();
-
   sanitized = sanitized.replace(/\s+A$/, "");
   return sanitized;
 }
 
 /**
- * Procesa el PDF y decide qué función de extracción usar según el contenido.
+ * Procesa el PDF y decide qué función de extracción usar según el contenido y el formato solicitado.
+ * - Si pdfFormat es "CERTIFICADO_DE_HOMOLOGACION": se requiere que el texto incluya "CERTIFICADO DE HOMOLOGACIÓN".
+ * - Si pdfFormat es "CRT": se requiere que el texto incluya "CERTIFICADO DE REVISIÓN TÉCNICA" o "CRT".
+ *   Se usa la lógica original:
+ *     * Si el texto incluye "CERTIFICADO DE REVISIÓN TÉCNICA" y "NOMBRE DEL PROPIETARIO", se usa extraerDatosRevisionTecnicaNuevoFormato.
+ *     * Si no, pero incluye "FECHA REVISIÓN" y "PLANTA:", se usa extraerDatosEmisiones.
+ *     * En caso contrario, se lanza error.
+ * Si no se especifica formato, se usa la lógica original.
  */
-export async function procesarPDF(file: File): Promise<{ datos: Record<string, string>; titulo?: string }> {
+export async function procesarPDF(file: File, pdfFormat?: string): Promise<{ datos: Record<string, string>; titulo?: string }> {
   const { allText } = await parsePDFBuffer(file);
 
   let datos: Record<string, string> = {};
   let titulo: string | undefined;
 
-  // Heurísticas para detectar el formato:
-  if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
-    datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
-  } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
-    datos = extraerDatosEmisiones(allText);
-  } else {
+  if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
+    if (!allText.includes("CERTIFICADO DE HOMOLOGACIÓN")) {
+      throw new Error("El archivo no corresponde a la estructura de CERTIFICADO DE HOMOLOGACIÓN");
+    }
     datos = extraerDatos(allText);
     const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
     if (matchTitulo && matchTitulo[1]) {
       titulo = matchTitulo[1].trim();
+    }
+  } else if (pdfFormat === "CRT") {
+    if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
+      datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
+    } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
+      datos = extraerDatosEmisiones(allText);
+    } else {
+      throw new Error("El archivo no corresponde a la estructura de CRT");
+    }
+  } else {
+    if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
+      datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
+    } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
+      datos = extraerDatosEmisiones(allText);
+    } else {
+      datos = extraerDatos(allText);
+      const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
+      if (matchTitulo && matchTitulo[1]) {
+        titulo = matchTitulo[1].trim();
+      }
     }
   }
 

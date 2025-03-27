@@ -1,17 +1,27 @@
-// src/components/FileUpload.tsx
-
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { isValidPDF } from "../utils/fileUtils";
 
 interface FileUploadProps {
   onFilesChange: (files: FileList | null) => void;
+  clearTrigger: boolean; // NUEVO: indica cuándo debemos limpiar
 }
 
-export default function FileUpload({ onFilesChange }: FileUploadProps) {
+export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Cuando clearTrigger cambie a true, limpiamos el input y los estados
+  useEffect(() => {
+    if (clearTrigger && inputRef.current) {
+      inputRef.current.value = "";
+      setSelectedFiles([]);
+      setError(null);
+      onFilesChange(null);
+    }
+  }, [clearTrigger, onFilesChange]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -44,6 +54,7 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
       </label>
       <input
         id="pdf-upload"
+        ref={inputRef} // Referencia al input
         type="file"
         name="pdf"
         accept="application/pdf"
@@ -59,7 +70,6 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
       )}
 
       {selectedFiles.length > 0 && (
-        // Contenedor con scroll vertical y altura máxima
         <div style={{ maxHeight: "200px", overflowY: "auto" }} className="mt-2">
           <ul className="list-group">
             {selectedFiles.map((file, index) => (

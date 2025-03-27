@@ -1,4 +1,3 @@
-// src/app/page.tsx
 "use client";
 
 import { useState } from "react";
@@ -6,7 +5,7 @@ import FileUpload from "../components/FileUpload";
 import { validatePDFFiles } from "../utils/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
-import logger from "../utils/logger"; // Importamos el logger
+import logger from "../utils/logger";
 
 export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
@@ -16,11 +15,65 @@ export default function Home() {
   const [fileName, setFileName] = useState<string>("consolidado.xlsx");
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const [totalProcesados, setTotalProcesados] = useState(0);
+  const [totalExitosos, setTotalExitosos] = useState(0);
+  const [totalFallidos, setTotalFallidos] = useState(0);
+  const [groupedExitosos, setGroupedExitosos] = useState<
+    Array<{ fileName: string; count: number }>
+  >([]);
+  const [groupedFallidos, setGroupedFallidos] = useState<
+    Array<{ fileName: string; count: number; error: string }>
+  >([]);
+  const [formatMessage, setFormatMessage] = useState("");
+
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  // Estado para el formato de PDF a procesar.
+  const [pdfFormat, setPdfFormat] = useState("CERTIFICADO_DE_HOMOLOGACION");
+
+  // NUEVO: un estado booleano que controla la limpieza del FileUpload
+  const [clearFileInput, setClearFileInput] = useState(false);
+
   const handleFileChange = (files: FileList | null) => {
     setFiles(files);
-    // Reinicia la vista previa al cambiar los archivos
+    // Cada vez que se cambien los archivos, se limpian los resultados
+    resetStates();
+  };
+
+  const handleFormatChange = (format: string) => {
+    setPdfFormat(format);
+    resetStates();
+  };
+
+  // Función para resetear los estados, pero NO limpia el input en sí
+  const resetStates = () => {
     setPreviewData(null);
     setExcelBlob(null);
+    setFileName("consolidado.xlsx");
+    setTotalProcesados(0);
+    setTotalExitosos(0);
+    setTotalFallidos(0);
+    setGroupedExitosos([]);
+    setGroupedFallidos([]);
+    setFormatMessage("");
+    setApiError(null);
+    setLoading(false);
+    setIsExpanded(false);
+  };
+
+  // Función que limpia TODO, incluido el FileUpload
+  const handleLimpiar = () => {
+    // 1) Indicamos que FileUpload debe limpiarse
+    setClearFileInput(true);
+    // 2) Un pequeño truco: tras un micro-tick, volvemos a false
+    // para que en el próximo render, si se presiona "Limpiar" otra vez,
+    // funcione igual.
+    setTimeout(() => setClearFileInput(false), 0);
+
+    // 3) Reseteamos el resto de estados
+    setFiles(null);
+    resetStates();
+    setPdfFormat("CERTIFICADO_DE_HOMOLOGACION"); // Opcional
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -37,38 +90,52 @@ export default function Home() {
     Array.from(files).forEach((file) => {
       formData.append("pdf", file);
     });
+    formData.append("pdfFormat", pdfFormat);
 
     try {
       const res = await fetch("/api/convert", {
         method: "POST",
         body: formData,
       });
+      const data = await res.json();
 
       if (!res.ok) {
-        alert("Error procesando los archivos");
+        alert(data.error);
         setLoading(false);
         return;
       }
 
-      // Extracción robusta del nombre de archivo desde el header
-      const contentDisposition = res.headers.get("Content-Disposition") || "";
-      let extractedFileName = "consolidado.xlsx";
-      const matchUTF8 = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-      const matchSimple = contentDisposition.match(/filename="([^"]+)"/i);
-      if (matchUTF8 && matchUTF8[1]) {
-        extractedFileName = decodeURIComponent(matchUTF8[1]);
-      } else if (matchSimple && matchSimple[1]) {
-        extractedFileName = matchSimple[1];
+      // Si data.error existe con status 200, lo mostramos
+      if (data.error) {
+        setApiError(data.error);
       }
-      setFileName(extractedFileName);
 
-      // Obtiene el blob del Excel
-      const blob = await res.blob();
-      setExcelBlob(blob);
+      setTotalProcesados(data.totalProcesados);
+      setTotalExitosos(data.totalExitosos);
+      setTotalFallidos(data.totalFallidos);
+      setGroupedExitosos(data.exitosos);
+      setGroupedFallidos(data.fallidos);
+      setFormatMessage(data.message);
 
-      // Utiliza readXlsxFile para parsear el blob y obtener los datos en formato de array
-      const rows = await readXlsxFile(blob);
-      setPreviewData(rows);
+      if (data.excel) {
+        const byteCharacters = atob(data.excel);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        setExcelBlob(blob);
+        setFileName(decodeURIComponent(data.fileName));
+
+        const rows = await readXlsxFile(blob);
+        setPreviewData(rows);
+      } else {
+        setExcelBlob(null);
+        setPreviewData(null);
+      }
     } catch (error) {
       logger.error("Error:", error);
       alert("Ocurrió un error");
@@ -89,13 +156,64 @@ export default function Home() {
         <div className="col-12 col-md-8 col-lg-6">
           <h1 className="text-center mb-4">Consolidar PDFs a Excel</h1>
           <form onSubmit={handleSubmit}>
-            <FileUpload onFilesChange={handleFileChange} />
-            <div className="d-grid gap-2 mt-3">
+            {/* Pasamos clearTrigger para que FileUpload sepa cuándo limpiarse */}
+            <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
+
+            <div className="mb-3">
+              <label className="form-label">Selecciona el formato de PDF:</label>
+              <div className="btn-group">
+                <button
+                  type="button"
+                  className={
+                    pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
+                      ? "btn btn-primary"
+                      : "btn btn-outline-primary"
+                  }
+                  onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
+                >
+                  CERTIFICADO DE HOMOLOGACIÓN
+                </button>
+                <button
+                  type="button"
+                  className={
+                    pdfFormat === "CRT"
+                      ? "btn btn-primary"
+                      : "btn btn-outline-primary"
+                  }
+                  onClick={() => handleFormatChange("CRT")}
+                >
+                  Certificado de Revisión Técnica (CRT)
+                </button>
+              </div>
+            </div>
+
+            <div className="d-flex gap-2 mt-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? "Procesando..." : "Convertir"}
               </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleLimpiar}
+                disabled={loading}
+              >
+                Limpiar
+              </button>
             </div>
           </form>
+
+          {apiError && (
+            <div className="mt-4 alert alert-warning">
+              {apiError}
+            </div>
+          )}
+
+          {formatMessage && (
+            <div className="mt-4 alert alert-info">
+              {formatMessage}
+            </div>
+          )}
+
           {previewData && (
             <div className="mt-5">
               <h2 className="mb-3">Vista Previa del Excel</h2>
@@ -130,10 +248,46 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          <div className="mt-4">
+            <h3>Resumen de Procesamiento</h3>
+            <p>Total Procesados: {totalProcesados}</p>
+            <p>Total Exitosos: {totalExitosos}</p>
+            <p>Total Fallidos: {totalFallidos}</p>
+          </div>
+
+          {groupedExitosos.length > 0 && (
+            <div className="mt-4">
+              <h4>Archivos Convertidos (Exitosos)</h4>
+              <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                <ul className="list-group">
+                  {groupedExitosos.map((item, index) => (
+                    <li key={index} className="list-group-item">
+                      {item.fileName} {item.count > 1 && `(x${item.count})`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {groupedFallidos.length > 0 && (
+            <div className="mt-4">
+              <h4>Archivos Fallidos</h4>
+              <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                <ul className="list-group">
+                  {groupedFallidos.map((item, index) => (
+                    <li key={index} className="list-group-item">
+                      {item.fileName} {item.count > 1 && `(x${item.count})`} - {item.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modal de vista expandida */}
       {isExpanded && previewData && (
         <div
           style={{

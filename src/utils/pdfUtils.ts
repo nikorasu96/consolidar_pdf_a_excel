@@ -113,7 +113,7 @@ export function extraerDatos(text: string): Record<string, string> {
     "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/i) || "",
     "Nº Motor": ((): string => {
       let motor = buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "";
-      // Elimina al final " C" o " El" (case-insensitive)
+      // Elimina al final " C", " El" o "EL" (case-insensitive)
       return motor.replace(/\s+(C|El)$/i, '').trim();
     })(),
     "Firmado por": ((): string => {
@@ -158,27 +158,34 @@ export function extraerDatosEmisiones(text: string): Record<string, string> {
 }
 
 /**
- * Función para extraer datos del formato de Revisión Técnica (CRT).
+ * Función para extraer datos del formato de Revisión Técnica (CRT) de forma simplificada.
+ * Se extraen únicamente los 4 campos requeridos: Fecha de Revisión, Planta, Placa Patente y Válido Hasta.
  */
-export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<string, string> {
-  const capturar = (regex: RegExp): string => {
-    const match = text.match(regex);
-    return match && match[1] ? match[1].trim() : "";
-  };
-
+export function extraerDatosRevisionTecnicaSimplificado(text: string): Record<string, string> {
   const datos: Record<string, string> = {};
-  datos["Fecha de Revisión"] = capturar(/FECHA REVISIÓN:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
-  datos["Nro"] = capturar(/NRO:\s*#?([\w\-]+)/i);
-  datos["Planta"] = capturar(/PLANTA:\s*(.+?)(?=\s+PLACA\s+PATENTE|FIRMA|$)/i);
-  datos["Placa Patente"] = capturar(/PLACA\s+PATENTE:\s*([A-Z0-9]+)/i);
-  datos["Firma Electrónica"] = capturar(/FIRMA ELECTRÓNICA(?:\s+AVANZADA)?\s+(.+?)(?=\n|$)/i);
-  datos["Válido Hasta"] = capturar(/VÁLIDO HASTA:\s*([\wÁÉÍÓÚÑ\d\s]+)/i);
-  datos["Nombre del Propietario"] = capturar(/NOMBRE DEL PROPIETARIO:\s*(.+?)(?=\n|$)/i);
-  datos["RUT"] = capturar(/RUT:\s*([\d\.]+-[\dkK])\b/);
-  datos["Marca"] = capturar(/MARCA:\s*([A-Z0-9]+)/i);
-  datos["Modelo"] = capturar(/MODELO:\s*([A-Z0-9]+)/i);
-  datos["Tipo de Combustible"] = capturar(/TIPO DE COMBUSTIBLE:\s*([A-Z]+)/i);
-  datos["Sello"] = text.includes("SELLO VERDE") ? "VERDE" : "";
+  // Fecha de Revisión: Se toma el primer match después de "FECHA REVISIÓN:".
+  const fechaMatch = text.match(/FECHA REVISIÓN:\s*(\d{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4})/i);
+  if (fechaMatch) {
+    datos["Fecha de Revisión"] = fechaMatch[1].trim();
+  }
+  // Planta: Se busca la etiqueta "PLANTA:".
+  const plantaMatch = text.match(/PLANTA:\s*([A-Z0-9-]+)/i);
+  if (plantaMatch) {
+    datos["Planta"] = plantaMatch[1].trim();
+  }
+  // Placa Patente: Se busca la etiqueta "PLACA PATENTE" y se toma el primer match de una cadena alfanumérica.
+  const placaMatch = text.match(/PLACA PATENTE\s+([A-Z0-9]+)/i);
+  if (placaMatch) {
+    datos["Placa Patente"] = placaMatch[1].trim();
+  }
+  // Válido Hasta: Se busca "VÁLIDO HASTA" y se toma el primer match de un mes y año.
+  let validoMatch = text.match(/VÁLIDO HASTA\s*(?:FECHA REVISIÓN:.*?)([A-Z]+\s+\d{4})/i);
+  if (!validoMatch) {
+    validoMatch = text.match(/VÁLIDO HASTA\s*([A-Z]+\s+\d{4})/i);
+  }
+  if (validoMatch) {
+    datos["Válido Hasta"] = validoMatch[1].trim();
+  }
   return datos;
 }
 
@@ -234,8 +241,7 @@ export function sanitizarNombre(str: string): string {
 
 /**
  * Función para validar los datos extraídos según el formato.
- * Se definen los patrones esperados para cada campo y se verifican.
- * Si algún campo no coincide, se acumulan los errores y se lanza una excepción.
+ * Para CRT, se validan únicamente los 4 campos requeridos.
  */
 function validateExtractedData(
   datos: Record<string, string>,
@@ -256,7 +262,6 @@ function validateExtractedData(
         "Marca": /^[A-Z]+$/,
         "Año": /^\d{4}$/,
         "Modelo": /^.+$/,
-        // Actualizado para aceptar colores con letras, espacios, paréntesis, números, guiones y un posible punto final.
         "Color": /^[A-Z\s\(\)0-9\.\-]+\.?$/,
         "VIN": /^[A-Z0-9]+$/,
         "Nº Motor": /^[A-Z0-9 ]+(?:\s*[A-Za-z]+)?$/,
@@ -264,19 +269,12 @@ function validateExtractedData(
       });
       break;
     case "CRT":
+      // Solo se validan los 4 campos requeridos para CRT.
       Object.assign(expectedPatterns, {
         "Fecha de Revisión": /^\d{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4}$/,
-        "Nro": /^[A-Z0-9\-]+$/,
-        "Planta": /^.+$/,
         "Placa Patente": /^[A-Z0-9]+$/,
-        "Firma Electrónica": /^.+$/,
-        "Válido Hasta": /^.+$/,
-        "Nombre del Propietario": /^.+$/,
-        "RUT": /^\d{1,3}(?:\.\d{3})*-[\dkK]$/,
-        "Marca": /^[A-Z0-9]+$/,
-        "Modelo": /^[A-Z0-9]+$/,
-        "Tipo de Combustible": /^[A-Z]+$/,
-        "Sello": /^(VERDE)?$/,
+        "Válido Hasta": /^[A-Z\s]+[0-9]{4}$/i,
+        "Planta": /^.+$/,
       });
       break;
     case "SOAP":
@@ -365,16 +363,8 @@ export async function procesarPDF(
     }
     validateExtractedData(datos, file.name, "CERTIFICADO_DE_HOMOLOGACION");
   } else if (pdfFormat === "CRT" || (!pdfFormat && formatoDetectado === "CRT")) {
-    if (
-      allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") &&
-      allText.includes("NOMBRE DEL PROPIETARIO")
-    ) {
-      datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
-    } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
-      datos = extraerDatosEmisiones(allText);
-    } else {
-      throw new Error(`El archivo ${file.name} no corresponde a la estructura de CRT`);
-    }
+    // Para CRT, utilizamos la extracción simplificada que obtiene solo los 4 campos requeridos.
+    datos = extraerDatosRevisionTecnicaSimplificado(allText);
     validateExtractedData(datos, file.name, "CRT");
   } else if (pdfFormat === "SOAP" || (!pdfFormat && formatoDetectado === "SOAP")) {
     datos = extraerDatosSOAP(allText);

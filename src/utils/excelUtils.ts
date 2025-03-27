@@ -1,6 +1,5 @@
-// src/utils/excelUtils.ts
-
 import XlsxPopulate, { Sheet } from "xlsx-populate";
+import type { PDFFormat } from "@/../../types/pdfFormat";
 
 const COLUMN_WIDTH_FACTOR = 1.2;
 const MIN_COLUMN_WIDTH = 10;
@@ -45,15 +44,12 @@ function adjustRowHeightsForWrapText(
 
 /**
  * Genera un archivo Excel a partir de un arreglo de registros.
- * Si no hay registros, se lanza un error con un mensaje más claro.
- * Se añade un parámetro pdfFormat para personalizar el mensaje según el botón.
  */
 export async function generateExcel(
   registros: Record<string, string>[],
   fileName: string,
-  pdfFormat?: string
+  pdfFormat?: PDFFormat
 ): Promise<{ buffer: Buffer; encodedName: string }> {
-  // Si no hay registros, lanzamos un error diferenciado según el pdfFormat
   if (registros.length === 0) {
     let errorMsg = "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
     if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
@@ -68,22 +64,18 @@ export async function generateExcel(
   const workbook = await XlsxPopulate.fromBlankAsync();
   const sheet = workbook.sheet(0);
 
-  // Encabezados en la primera fila
   encabezados.forEach((header, colIndex) => {
     sheet.cell(1, colIndex + 1).value(header);
   });
 
-  // Escribimos los registros
   registros.forEach((registro, rowIndex) => {
     encabezados.forEach((header, colIndex) => {
       sheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");
     });
   });
 
-  // Ajuste de anchos
   setColumnWidths(sheet, encabezados, registros);
 
-  // Ajuste de altura si existe la columna "Estado"
   const estadoIndex = encabezados.findIndex((header) => header === "Estado");
   if (estadoIndex !== -1) {
     adjustRowHeightsForWrapText(sheet, registros, estadoIndex + 1);

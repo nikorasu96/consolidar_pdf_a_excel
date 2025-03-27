@@ -1,7 +1,6 @@
-// src/utils/pdfUtils.ts
-
 import PDFParser from "pdf2json";
 import logger from "./logger";
+import type { PDFFormat } from "@/../../types/pdfFormat";
 
 /**
  * Tipos básicos para pdf2json.
@@ -80,7 +79,6 @@ export async function parsePDFBuffer(
     throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
 
-  // Log para verificar el contenido exacto extraído (útil para ajustar regex)
   logger.debug("Texto extraído (allText):", allText);
 
   return { pdfData, allText };
@@ -96,7 +94,8 @@ export function buscar(text: string, pattern: RegExp): string | null {
 
 /**
  * Función para extraer datos del formato de Homologación.
- * Se mantiene sin cambios la lógica original.
+ * Se ajustan los campos "Firmado por" y "Nº Motor" para limpiar datos adicionales,
+ * y se actualiza la extracción del "Color" para que no incluya información extra.
  */
 export function extraerDatos(text: string): Record<string, string> {
   return {
@@ -109,16 +108,23 @@ export function extraerDatos(text: string): Record<string, string> {
     "Marca": buscar(text, /MARCA\s+([A-Z]+)/i) || "",
     "Año": buscar(text, /AÑO\s+([0-9]{4})/i) || "",
     "Modelo": buscar(text, /MODELO\s+(.+?)[ \t]+COLOR/i) || "",
-    "Color": buscar(text, /COLOR\s+([A-Z]+)/i) || "",
+    // Se extrae el color hasta que encuentre "VIN" o el fin de la cadena.
+    "Color": buscar(text, /COLOR\s+([A-Z\s\(\)0-9\.\-]+?)(?=\s+VIN\b|$)/i) || "",
     "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/i) || "",
-    "Nº Motor": buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "",
-    "Firmado por": buscar(text, /Firmado por:\s+(.+?)(?=\s+AUDITORÍA|\r?\n|$)/i) || "",
+    "Nº Motor": ((): string => {
+      let motor = buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "";
+      // Elimina al final " C" o " El" (case-insensitive)
+      return motor.replace(/\s+(C|El)$/i, '').trim();
+    })(),
+    "Firmado por": ((): string => {
+      let firmado = buscar(text, /Firmado por:\s+(.+?)(?=\s+AUDITORÍA|\r?\n|$)/i) || "";
+      return firmado.split(/\d{2}\/\d{2}\/\d{4}/)[0].trim();
+    })(),
   };
 }
 
 /**
  * Función para extraer datos del formato "Certificado de Emisiones".
- * Se mantiene sin cambios la lógica original.
  */
 export function extraerDatosEmisiones(text: string): Record<string, string> {
   const obtenerPrimerMatch = (patron: RegExp): string => {
@@ -153,7 +159,6 @@ export function extraerDatosEmisiones(text: string): Record<string, string> {
 
 /**
  * Función para extraer datos del formato de Revisión Técnica (CRT).
- * Se mantiene sin cambios la lógica original.
  */
 export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<string, string> {
   const capturar = (regex: RegExp): string => {
@@ -179,22 +184,12 @@ export function extraerDatosRevisionTecnicaNuevoFormato(text: string): Record<st
 
 /**
  * Función para extraer datos del formato SOAP (Seguro Obligatorio).
- * Se extraen los siguientes campos:
- *   - INSCRIPCION R.V.M (ej: "LXWJ75-4")
- *   - Bajo el codigo (ej: "POL420130487")
- *   - RUT (ej: "97.036.000-k" o "97.036.000-K")
- *   - RIGE DESDE (ej: "01-04-2025")
- *   - HASTA (ej: "31-03-2026")
- *   - POLIZA N° (ej: "629635-M")
- *   - PRIMA (ej: "5.950")
  */
 export function extraerDatosSOAP(text: string): Record<string, string> {
-  // Normalizamos saltos de línea para unir todo en una sola cadena
   const t = text.replace(/\r?\n|\r/g, " ");
   return {
     "INSCRIPCION R.V.M": buscar(
       t,
-      // Permite que entre "INSCRIPCION" y "R" haya espacios, y admite "R", "V" y "M" con o sin puntos y con espacios opcionales.
       /INSCRIPCION\s+R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*[:\s-]+\s*([A-Z0-9\-]+)/i
     ) || "",
     "Bajo el codigo": buscar(
@@ -238,57 +233,155 @@ export function sanitizarNombre(str: string): string {
 }
 
 /**
+ * Función para validar los datos extraídos según el formato.
+ * Se definen los patrones esperados para cada campo y se verifican.
+ * Si algún campo no coincide, se acumulan los errores y se lanza una excepción.
+ */
+function validateExtractedData(
+  datos: Record<string, string>,
+  fileName: string,
+  format: PDFFormat
+): void {
+  const expectedPatterns: Record<string, RegExp> = {};
+
+  switch (format) {
+    case "CERTIFICADO_DE_HOMOLOGACION":
+      Object.assign(expectedPatterns, {
+        "Fecha de Emisión": /^\d{1,2}\/[A-Z]{3}\/\d{4}$/,
+        "Nº Correlativo": /^[A-Z0-9\-]+$/,
+        "Código Informe Técnico": /^[A-Z0-9\-]+$/,
+        "Patente": /^[A-Z0-9\-]+$/,
+        "Válido Hasta": /^[A-Z]{3}\/\d{4}$/,
+        "Tipo de Vehículo": /^[A-ZÑ]+$/,
+        "Marca": /^[A-Z]+$/,
+        "Año": /^\d{4}$/,
+        "Modelo": /^.+$/,
+        // Actualizado para aceptar colores con letras, espacios, paréntesis, números, guiones y un posible punto final.
+        "Color": /^[A-Z\s\(\)0-9\.\-]+\.?$/,
+        "VIN": /^[A-Z0-9]+$/,
+        "Nº Motor": /^[A-Z0-9 ]+(?:\s*[A-Za-z]+)?$/,
+        "Firmado por": /^.+$/,
+      });
+      break;
+    case "CRT":
+      Object.assign(expectedPatterns, {
+        "Fecha de Revisión": /^\d{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4}$/,
+        "Nro": /^[A-Z0-9\-]+$/,
+        "Planta": /^.+$/,
+        "Placa Patente": /^[A-Z0-9]+$/,
+        "Firma Electrónica": /^.+$/,
+        "Válido Hasta": /^.+$/,
+        "Nombre del Propietario": /^.+$/,
+        "RUT": /^\d{1,3}(?:\.\d{3})*-[\dkK]$/,
+        "Marca": /^[A-Z0-9]+$/,
+        "Modelo": /^[A-Z0-9]+$/,
+        "Tipo de Combustible": /^[A-Z]+$/,
+        "Sello": /^(VERDE)?$/,
+      });
+      break;
+    case "SOAP":
+      Object.assign(expectedPatterns, {
+        "INSCRIPCION R.V.M": /^[A-Z0-9\-]+$/,
+        "Bajo el codigo": /^[A-Z0-9]+$/,
+        "RUT": /^\d{1,3}(?:\.\d{3})*-[kK\d]$/,
+        "RIGE DESDE": /^\d{2}-\d{2}-\d{4}$/,
+        "HASTA": /^\d{2}-\d{2}-\d{4}$/,
+        "POLIZA N°": /^[A-Z0-9\-]+$/,
+        "PRIMA": /^[\d\.,]+$/,
+      });
+      break;
+    default:
+      return;
+  }
+
+  const errors: string[] = [];
+  for (const [field, pattern] of Object.entries(expectedPatterns)) {
+    const value = datos[field];
+    if (!value) {
+      errors.push(`Falta el campo "${field}".`);
+    } else if (!pattern.test(value)) {
+      errors.push(`Campo "${field}" con valor "${value}" no coincide con el formato esperado.`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `El archivo ${fileName} presenta errores en la validación de datos:\n${errors.join("\n")}`
+    );
+  }
+}
+
+/**
  * Procesa el PDF y selecciona la función de extracción según el pdfFormat.
+ * Además de detectar el formato real, se validan todos los campos extraídos
+ * según el formato esperado. Si alguna validación falla, se lanza un error
+ * que incluye el nombre del archivo y los detalles de las discrepancias.
  */
 export async function procesarPDF(
   file: File,
-  pdfFormat?: string
+  pdfFormat?: PDFFormat
 ): Promise<{ datos: Record<string, string>; titulo?: string }> {
   const { allText } = await parsePDFBuffer(file);
   let datos: Record<string, string> = {};
   let titulo: string | undefined;
 
-  if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
-    if (!allText.includes("CERTIFICADO DE HOMOLOGACIÓN")) {
-      throw new Error("El archivo no corresponde a la estructura de CERTIFICADO DE HOMOLOGACIÓN");
+  const detectarFormato = (text: string): PDFFormat | "DESCONOCIDO" => {
+    if (text.includes("CERTIFICADO DE HOMOLOGACIÓN")) {
+      return "CERTIFICADO_DE_HOMOLOGACION";
     }
+    if (
+      (text.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && text.includes("NOMBRE DEL PROPIETARIO")) ||
+      (text.includes("FECHA REVISIÓN") && text.includes("PLANTA:"))
+    ) {
+      return "CRT";
+    }
+    if (
+      text.includes("SEGURO OBLIGATORIO") ||
+      text.includes("SOAP") ||
+      text.includes("INSCRIPCION R.V.M") ||
+      text.includes("POLIZA")
+    ) {
+      return "SOAP";
+    }
+    return "DESCONOCIDO";
+  };
+
+  const formatoDetectado = detectarFormato(allText);
+
+  if (pdfFormat && formatoDetectado !== pdfFormat) {
+    throw new Error(
+      `El archivo ${file.name} no corresponde al formato esperado ${pdfFormat}. Se detectó el formato: ${formatoDetectado}.`
+    );
+  }
+
+  if (
+    pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ||
+    (!pdfFormat && formatoDetectado === "CERTIFICADO_DE_HOMOLOGACION")
+  ) {
     datos = extraerDatos(allText);
     const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
     if (matchTitulo && matchTitulo[1]) {
       titulo = matchTitulo[1].trim();
     }
-  } else if (pdfFormat === "CRT") {
-    if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
-      datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
-    } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
-      datos = extraerDatosEmisiones(allText);
-    } else {
-      throw new Error("El archivo no corresponde a la estructura de CRT");
-    }
-  } else if (pdfFormat === "SOAP") {
+    validateExtractedData(datos, file.name, "CERTIFICADO_DE_HOMOLOGACION");
+  } else if (pdfFormat === "CRT" || (!pdfFormat && formatoDetectado === "CRT")) {
     if (
-      !(
-        allText.includes("SEGURO OBLIGATORIO") ||
-        allText.includes("SOAP") ||
-        allText.includes("INSCRIPCION R.V.M") ||
-        allText.includes("POLIZA")
-      )
+      allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") &&
+      allText.includes("NOMBRE DEL PROPIETARIO")
     ) {
-      throw new Error("El archivo no corresponde a la estructura SOAP (Seguro Obligatorio).");
-    }
-    datos = extraerDatosSOAP(allText);
-  } else {
-    if (allText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") && allText.includes("NOMBRE DEL PROPIETARIO")) {
       datos = extraerDatosRevisionTecnicaNuevoFormato(allText);
     } else if (allText.includes("FECHA REVISIÓN") && allText.includes("PLANTA:")) {
       datos = extraerDatosEmisiones(allText);
     } else {
-      datos = extraerDatos(allText);
-      const matchTitulo = allText.match(/^(CERTIFICADO DE HOMOLOGACIÓN.*?)\s+REEMPLAZA/i);
-      if (matchTitulo && matchTitulo[1]) {
-        titulo = matchTitulo[1].trim();
-      }
+      throw new Error(`El archivo ${file.name} no corresponde a la estructura de CRT`);
     }
+    validateExtractedData(datos, file.name, "CRT");
+  } else if (pdfFormat === "SOAP" || (!pdfFormat && formatoDetectado === "SOAP")) {
+    datos = extraerDatosSOAP(allText);
+    validateExtractedData(datos, file.name, "SOAP");
+  } else {
+    throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }
+
   return { datos, titulo };
 }

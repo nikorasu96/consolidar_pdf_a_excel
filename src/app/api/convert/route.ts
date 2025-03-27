@@ -4,7 +4,7 @@ import { procesarPDF, sanitizarNombre } from "../../../utils/pdfUtils";
 import { generateExcel } from "../../../utils/excelUtils";
 import { isValidPDF } from "../../../utils/fileUtils";
 import logger from "../../../utils/logger";
-
+import type { PDFFormat } from "@/../../types/pdfFormat";
 
 export const runtime = "nodejs";
 
@@ -27,9 +27,7 @@ function isFulfilled(
   return res.status === "fulfilled";
 }
 
-function groupByFileName<T extends { fileName: string }>(
-  items: T[]
-): Array<{ fileName: string; count: number }> {
+function groupByFileName<T extends { fileName: string }>(items: T[]): Array<{ fileName: string; count: number }> {
   const map: Record<string, number> = {};
   for (const item of items) {
     map[item.fileName] = (map[item.fileName] || 0) + 1;
@@ -56,7 +54,7 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const files = formData.getAll("pdf") as File[];
-    const pdfFormat = formData.get("pdfFormat") as string;
+    const pdfFormat = formData.get("pdfFormat") as PDFFormat;
 
     if (!files || files.length === 0) {
       return NextResponse.json(

@@ -6,6 +6,7 @@ import { validatePDFFiles } from "../utils/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
 import logger from "../utils/logger";
+import type { PDFFormat } from "@/../../types/pdfFormat";
 
 export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
@@ -27,9 +28,9 @@ export default function Home() {
   const [formatMessage, setFormatMessage] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const [pdfFormat, setPdfFormat] = useState("CERTIFICADO_DE_HOMOLOGACION");
+  // Usamos PDFFormat como tipo para el formato seleccionado
+  const [pdfFormat, setPdfFormat] = useState<PDFFormat>("CERTIFICADO_DE_HOMOLOGACION");
 
-  // Estado para limpiar el input FileUpload
   const [clearFileInput, setClearFileInput] = useState(false);
 
   const resetResults = () => {
@@ -51,12 +52,11 @@ export default function Home() {
     resetResults();
   };
 
-  const handleFormatChange = (format: string) => {
+  const handleFormatChange = (format: PDFFormat) => {
     setPdfFormat(format);
     resetResults();
   };
 
-  // Función para limpiar el FileUpload y todos los estados
   const handleLimpiar = () => {
     setClearFileInput(true);
     setTimeout(() => setClearFileInput(false), 0);
@@ -150,11 +150,7 @@ export default function Home() {
               <div className="btn-group">
                 <button
                   type="button"
-                  className={
-                    pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
-                      ? "btn btn-primary"
-                      : "btn btn-outline-primary"
-                  }
+                  className={pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ? "btn btn-primary" : "btn btn-outline-primary"}
                   onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                 >
                   CERTIFICADO DE HOMOLOGACIÓN

@@ -3,7 +3,7 @@
 import {
   buscar,
   extraerDatos,
-  extraerDatosEmisiones, // <--- en vez de extraerDatosRevision
+  extraerDatosEmisiones, // Se usa extraerDatosEmisiones para simular el formato de revisión.
   sanitizarNombre,
   procesarPDF
 } from "../utils/pdfUtils";
@@ -64,7 +64,6 @@ describe("pdfUtils", () => {
     expect(datos["Nº Correlativo"]).toBe("");
     expect(datos["Código Informe Técnico"]).toBe("");
     expect(datos["Patente"]).toBe("");
-    // Otros campos inexistentes deberían quedar como ""
     expect(datos["Válido Hasta"]).toBe("");
   });
 
@@ -80,7 +79,6 @@ describe("pdfUtils", () => {
     expect(datosRevision["Fecha de Revisión"]).toBe("12 MAYO 2023");
     expect(datosRevision["Planta"]).toBe("ABC-123");
     expect(datosRevision["Placa Patente"]).toBe("XYZ789");
-    // Para este ejemplo, el campo Estado queda vacío.
     expect(datosRevision["Estado"]).toBe("");
     expect(datosRevision["Firma Electrónica"]).toBe("JUAN PÉREZ");
     expect(datosRevision["Válido hasta"]).toBe("ENERO 2025");
@@ -118,10 +116,8 @@ describe("pdfUtils", () => {
     expect(sanitizarNombre(input)).toBe(expected);
   });
 
-  // Ejemplo test superficial de procesarPDF
   test("procesarPDF() con formato original", async () => {
     const fakeFile = {} as File;
-    // Se verifica que la función exista
     expect(typeof procesarPDF).toBe("function");
   });
 });

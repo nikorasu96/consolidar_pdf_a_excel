@@ -6,7 +6,7 @@ import "./globals.css";
 
 // Metadatos de la aplicación que pueden ser utilizados en el HTML para SEO, título, descripción, etc.
 export const metadata = {
-  title: "My Next Project",
+  title: "Convertidor",
   description: "Next.js 13 + TypeScript + Bootstrap + PDF to Excel",
 };
 

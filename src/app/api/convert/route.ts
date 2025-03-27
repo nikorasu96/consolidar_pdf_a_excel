@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     const nombreArchivo =
       files.length === 1 && tituloExtraido
         ? sanitizarNombre(tituloExtraido)
-        : "CONSOLIDADO_CERTIFICADOS_HOMOLOGADOS";
+        : "CONSOLIDADO_CERTIFICADOS";
 
     // Generar el Excel con los registros extraídos.
     const { buffer: excelBuffer, encodedName } = await generateExcel(

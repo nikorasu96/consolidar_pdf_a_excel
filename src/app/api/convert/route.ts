@@ -5,6 +5,7 @@ import pLimit from "p-limit";
 import { procesarPDF, sanitizarNombre } from "../../../utils/pdfUtils";
 import { generateExcel } from "../../../utils/excelUtils";
 import { isValidPDF } from "../../../utils/fileUtils";
+import logger from "../../../utils/logger"; // Importamos el logger
 
 export const runtime = "nodejs";
 
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error("Error procesando los PDFs:", error);
+    logger.error("Error procesando los PDFs:", error);
     return NextResponse.json(
       { error: "Error procesando los PDFs. Por favor, inténtalo más tarde." },
       { status: 500 }

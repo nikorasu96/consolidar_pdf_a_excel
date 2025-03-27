@@ -6,6 +6,7 @@ import FileUpload from "../components/FileUpload";
 import { validatePDFFiles } from "../utils/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
+import logger from "../utils/logger"; // Importamos el logger
 
 export default function Home() {
   const [files, setFiles] = useState<FileList | null>(null);
@@ -69,7 +70,7 @@ export default function Home() {
       const rows = await readXlsxFile(blob);
       setPreviewData(rows);
     } catch (error) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       alert("Ocurrió un error");
     } finally {
       setLoading(false);

@@ -1,5 +1,7 @@
 // src/utils/fileUtils.ts
 
+import logger from "./logger"; // Importamos el logger
+
 /**
  * Obtiene el tamaño máximo de archivo permitido desde la variable de entorno.
  * Valida que sea un número y, en caso contrario, utiliza un valor por defecto (5 MB).
@@ -9,13 +11,13 @@ function getMaxFileSize(): number {
   const envValue = process.env.NEXT_PUBLIC_MAX_FILE_SIZE;
 
   if (!envValue) {
-    console.warn("NEXT_PUBLIC_MAX_FILE_SIZE no está definida. Usando 5MB por defecto.");
+    logger.warn("NEXT_PUBLIC_MAX_FILE_SIZE no está definida. Usando 5MB por defecto.");
     return defaultSize;
   }
 
   const parsed = parseInt(envValue, 10);
   if (isNaN(parsed) || parsed <= 0) {
-    console.warn(`Valor de NEXT_PUBLIC_MAX_FILE_SIZE inválido: "${envValue}". Usando 5MB por defecto.`);
+    logger.warn(`Valor de NEXT_PUBLIC_MAX_FILE_SIZE inválido: "${envValue}". Usando 5MB por defecto.`);
     return defaultSize;
   }
 

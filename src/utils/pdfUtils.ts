@@ -1,6 +1,7 @@
 // src/utils/pdfUtils.ts
 
 import PDFParser from "pdf2json";
+import logger from "./logger"; // Importamos el logger
 
 /**
  * Tipos básicos para pdf2json.
@@ -26,7 +27,7 @@ function safeDecodeURIComponent(encoded: string): string {
   try {
     return decodeURIComponent(encoded);
   } catch (error) {
-    console.error("Error decodificando cadena:", encoded, error);
+    logger.error("Error decodificando cadena:", encoded, error);
     return encoded;
   }
 }
@@ -46,15 +47,15 @@ export async function parsePDFBuffer(
   const pdfData: PDFData = await new Promise<PDFData>((resolve, reject) => {
     const pdfParser = new PDFParser();
     pdfParser.on("pdfParser_dataError", (errData: any) => {
-      console.error("Error en pdfParser_dataError:", errData);
+      logger.error("Error en pdfParser_dataError:", errData);
       reject(new Error("Error al parsear el PDF: " + errData.parserError));
     });
     pdfParser.on("pdfParser_dataReady", (data: PDFData) => resolve(data));
     pdfParser.parseBuffer(buffer);
   });
 
-  // Imprime las claves del objeto pdfData para depuración
-  console.log("Estructura de pdfData:", Object.keys(pdfData));
+  // Log de depuración para ver la estructura del pdfData
+  logger.debug("Estructura de pdfData:", Object.keys(pdfData));
 
   let allText = "";
   const extractTextFromPages = (pages: PDFPage[]): string => {

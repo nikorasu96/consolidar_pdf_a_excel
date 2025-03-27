@@ -6,7 +6,7 @@ import {
   extraerDatosEmisiones, // Se usa extraerDatosEmisiones para simular el formato de revisión.
   sanitizarNombre,
   procesarPDF
-} from "../utils/pdfUtils";
+} from "@/utils/pdfUtils";
 
 describe("pdfUtils", () => {
   // Texto de muestra para pruebas del formato original.

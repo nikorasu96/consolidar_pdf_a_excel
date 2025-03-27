@@ -113,7 +113,6 @@ export function extraerDatos(text: string): Record<string, string> {
     "VIN": buscar(text, /VIN\s+([A-Z0-9]+)/i) || "",
     "Nº Motor": ((): string => {
       let motor = buscar(text, /N[°º]\s*MOTOR\s+([A-Z0-9]+(?:\s+[A-Z0-9]+)?)/i) || "";
-      // Elimina al final " C", " El" o "EL" (case-insensitive)
       return motor.replace(/\s+(C|El)$/i, '').trim();
     })(),
     "Firmado por": ((): string => {
@@ -181,7 +180,7 @@ export function extraerDatosRevisionTecnicaSimplificado(text: string): Record<st
   // Válido Hasta: Se busca "VÁLIDO HASTA" y se toma el primer match de un mes y año.
   let validoMatch = text.match(/VÁLIDO HASTA\s*(?:FECHA REVISIÓN:.*?)([A-Z]+\s+\d{4})/i);
   if (!validoMatch) {
-    validoMatch = text.match(/VÁLIDO HASTA\s*([A-Z]+\s+\d{4})/i);
+    validoMatch = text.match(/VÁLIDO HASTA\s*:?\s*([A-Z]+\s+\d{4})/i);
   }
   if (validoMatch) {
     datos["Válido Hasta"] = validoMatch[1].trim();
@@ -190,44 +189,32 @@ export function extraerDatosRevisionTecnicaSimplificado(text: string): Record<st
 }
 
 /**
- * Función para extraer datos del formato SOAP (Seguro Obligatorio).
+ * Función para extraer datos del formato SOAP (Seguro Obligatorio) de forma simplificada.
+ * Se extraen los siguientes campos:
+ * - INSCRIPCION R.V.M
+ * - Bajo el codigo
+ * - RUT
+ * - RIGE DESDE
+ * - HASTA
+ * - POLIZA N°
+ * - PRIMA
  */
-export function extraerDatosSOAP(text: string): Record<string, string> {
+export function extraerDatosSoapSimplificado(text: string): Record<string, string> {
   const t = text.replace(/\r?\n|\r/g, " ");
   return {
-    "INSCRIPCION R.V.M": buscar(
-      t,
-      /INSCRIPCION\s+R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*[:\s-]+\s*([A-Z0-9\-]+)/i
-    ) || "",
-    "Bajo el codigo": buscar(
-      t,
-      /Bajo\s+el\s+c[óo]digo\s*[:\s-]+\s*([A-Z0-9]+)/i
-    ) || "",
-    "RUT": buscar(
-      t,
-      /RUT\s*[:\s-]+\s*([\d\.]+-[kK])/i
-    ) || "",
-    "RIGE DESDE": buscar(
-      t,
-      /RIGE\s+DESDE\s*[:\s-]+\s*(\d{2}-\d{2}-\d{4})/i
-    ) || "",
-    "HASTA": buscar(
-      t,
-      /HAST\s*A?\s*[:\s-]+\s*(\d{2}-\d{2}-\d{4})/i
-    ) || "",
-    "POLIZA N°": buscar(
-      t,
-      /POLIZA\s*N[°º]?\s*[:\s-]+\s*([\w\-]+)/i
-    ) || "",
-    "PRIMA": buscar(
-      t,
-      /PRIMA\s*[:\s-]+\s*([\d\.,]+)/i
-    ) || "",
+    "INSCRIPCION R.V.M": buscar(t, /INSCRIPCION\s+R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*[:\s-]+\s*([A-Z0-9\-]+)/i) || "",
+    "Bajo el codigo": buscar(t, /Bajo\s+el\s+c[óo]digo\s*[:\s-]+\s*([A-Z0-9\-]+)/i) || "",
+    "RUT": buscar(t, /RUT\s*[:\s-]+\s*([\d\.]+-[kK])/i) || "",
+    "RIGE DESDE": buscar(t, /RIGE\s+DESDE\s*:?\s*(\d{2}-\d{2}-\d{4})/i) || "",
+    // Regex actualizada para capturar "HASTA:" con colon opcional.
+    "HASTA": buscar(t, /HASTA\s*:?\s*(\d{2}-\d{2}-\d{4})/i) || "",
+    "POLIZA N°": buscar(t, /POLIZA\s*N[°º]?\s*[:\s-]+\s*([\w\-]+)/i) || "",
+    "PRIMA": buscar(t, /PRIMA\s*[:\s-]+\s*([\d\.,]+)/i) || "",
   };
 }
 
 /**
- * Limpia acentos, caracteres no permitidos y quita " A" al final.
+ * Función para limpiar acentos, caracteres no permitidos y quitar " A" al final.
  */
 export function sanitizarNombre(str: string): string {
   let sanitized = str
@@ -241,7 +228,7 @@ export function sanitizarNombre(str: string): string {
 
 /**
  * Función para validar los datos extraídos según el formato.
- * Para CRT, se validan únicamente los 4 campos requeridos.
+ * Para Homologación y CRT se utiliza la validación actual, mientras que para SOAP simplificado se validan los 7 campos requeridos.
  */
 function validateExtractedData(
   datos: Record<string, string>,
@@ -269,7 +256,7 @@ function validateExtractedData(
       });
       break;
     case "CRT":
-      // Solo se validan los 4 campos requeridos para CRT.
+      // Validación simplificada para CRT (4 campos)
       Object.assign(expectedPatterns, {
         "Fecha de Revisión": /^\d{1,2}\s+[A-ZÁÉÍÓÚÑ]+\s+\d{4}$/,
         "Placa Patente": /^[A-Z0-9]+$/,
@@ -278,10 +265,11 @@ function validateExtractedData(
       });
       break;
     case "SOAP":
+      // Validación simplificada para SOAP (7 campos requeridos)
       Object.assign(expectedPatterns, {
         "INSCRIPCION R.V.M": /^[A-Z0-9\-]+$/,
-        "Bajo el codigo": /^[A-Z0-9]+$/,
-        "RUT": /^\d{1,3}(?:\.\d{3})*-[kK\d]$/,
+        "Bajo el codigo": /^[A-Z0-9\-]+$/,
+        "RUT": /^\d{1,3}(?:\.\d{3})*-[kK]$/,
         "RIGE DESDE": /^\d{2}-\d{2}-\d{4}$/,
         "HASTA": /^\d{2}-\d{2}-\d{4}$/,
         "POLIZA N°": /^[A-Z0-9\-]+$/,
@@ -311,9 +299,8 @@ function validateExtractedData(
 
 /**
  * Procesa el PDF y selecciona la función de extracción según el pdfFormat.
- * Además de detectar el formato real, se validan todos los campos extraídos
- * según el formato esperado. Si alguna validación falla, se lanza un error
- * que incluye el nombre del archivo y los detalles de las discrepancias.
+ * Además de detectar el formato real, se validan los campos extraídos según el formato esperado.
+ * Si alguna validación falla, se lanza un error que incluye el nombre del archivo y los detalles.
  */
 export async function procesarPDF(
   file: File,
@@ -363,11 +350,10 @@ export async function procesarPDF(
     }
     validateExtractedData(datos, file.name, "CERTIFICADO_DE_HOMOLOGACION");
   } else if (pdfFormat === "CRT" || (!pdfFormat && formatoDetectado === "CRT")) {
-    // Para CRT, utilizamos la extracción simplificada que obtiene solo los 4 campos requeridos.
     datos = extraerDatosRevisionTecnicaSimplificado(allText);
     validateExtractedData(datos, file.name, "CRT");
   } else if (pdfFormat === "SOAP" || (!pdfFormat && formatoDetectado === "SOAP")) {
-    datos = extraerDatosSOAP(allText);
+    datos = extraerDatosSoapSimplificado(allText);
     validateExtractedData(datos, file.name, "SOAP");
   } else {
     throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);

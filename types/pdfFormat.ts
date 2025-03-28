@@ -1,2 +1,2 @@
-import * as pdfUtils from "@/utils/pdfUtils";
-export type PDFFormat = "CRT" | "SOAP" | "CERTIFICADO_DE_HOMOLOGACION";
+// types/pdfFormat.ts
+export type PDFFormat = "CRT" | "SOAP" | "CERTIFICADO_DE_HOMOLOGACION" | "PERMISO_CIRCULACION";

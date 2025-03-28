@@ -4,14 +4,9 @@ import logger from "./logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 import { extraerDatosHomologacion, bestEffortValidationHomologacion } from "@/extractors/homologacionExtractor";
 import { extraerDatosCRT, bestEffortValidationCRT } from "@/extractors/crtExtractor";
-import {
-  extraerDatosSoapSimplificado,
-  extraerDatosSoapAlternativo,
-  bestEffortValidationSoap,
-} from "@/extractors/soapExtractor";
-import { generateExcel } from "./excelUtils";
+import { extraerDatosSoapSimplificado, bestEffortValidationSoap } from "@/extractors/soapExtractor";
+import { extraerDatosPermisoCirculacion, bestEffortValidationPermisoCirculacion } from "@/extractors/permisoCirculacionExtractor";
 
-// Exporta la función buscar
 export function buscar(text: string, pattern: RegExp): string | null {
   const match = text.match(pattern);
   return match && match[1] ? match[1].trim() : null;
@@ -27,7 +22,7 @@ export function sanitizarNombre(str: string): string {
   return sanitized;
 }
 
-export async function parsePDFBuffer(file: File): Promise<{ pdfData: any; allText: string }> {
+export async function parsePDFBuffer(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -69,18 +64,27 @@ export async function parsePDFBuffer(file: File): Promise<{ pdfData: any; allTex
     throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
 
-  logger.debug("Texto extraído (allText):", allText);
-  return { pdfData, allText };
+  // Limitar la impresión de log para evitar saturación
+  const maxLogLength = 500;
+  const logOutput =
+    allText.length > maxLogLength ? allText.slice(0, maxLogLength) + "..." : allText;
+  logger.debug("Texto extraído (allText):", logOutput);
+
+  return allText;
 }
 
 export async function procesarPDF(
   file: File,
-  pdfFormat?: PDFFormat
-): Promise<{ datos: Record<string, string>; titulo?: string }> {
-  const { allText } = await parsePDFBuffer(file);
+  pdfFormat?: PDFFormat,
+  returnRegex: boolean = false
+): Promise<{ datos: Record<string, string>; titulo?: string; regexes?: Record<string, RegExp> }> {
+  const allText = await parsePDFBuffer(file);
   let datos: Record<string, string> = {};
   let titulo: string | undefined;
+  let regexes: Record<string, RegExp> | undefined;
 
+  // Función de detección del formato actualizada:
+  // Para PERMISO_CIRCULACION se detecta si el texto (en minúsculas) contiene "permiso de circulación" y "placa".
   const detectarFormato = (texto: string): PDFFormat | "DESCONOCIDO" => {
     if (texto.includes("CERTIFICADO DE HOMOLOGACIÓN")) {
       return "CERTIFICADO_DE_HOMOLOGACION";
@@ -99,12 +103,17 @@ export async function procesarPDF(
     ) {
       return "SOAP";
     }
+    if (
+      texto.toLowerCase().includes("permiso de circulación") &&
+      texto.toLowerCase().includes("placa")
+    ) {
+      return "PERMISO_CIRCULACION";
+    }
     return "DESCONOCIDO";
   };
 
   const formatoDetectado = detectarFormato(allText);
 
-  // Si se indica un formato y el detectado no coincide, se rechaza el archivo.
   if (pdfFormat && formatoDetectado !== pdfFormat) {
     throw new Error(
       `El archivo ${file.name} no corresponde al formato esperado ${pdfFormat}. Se detectó: ${formatoDetectado}.`
@@ -125,13 +134,48 @@ export async function procesarPDF(
       bestEffortValidationCRT(datos, file.name);
       break;
     case "SOAP":
-      // Si se quisiera elegir entre el método alternativo o simplificado, se podría habilitar una condición
       datos = extraerDatosSoapSimplificado(allText);
       bestEffortValidationSoap(datos, file.name);
+      break;
+    case "PERMISO_CIRCULACION":
+      // Se extraen los datos específicos para permisos de circulación.
+      const result = extraerDatosPermisoCirculacion(allText);
+      datos = result.data;
+      if (returnRegex) {
+        regexes = result.regexes;
+      }
+      // Reemplazo de campos opcionales vacíos por "No aplica"
+      const camposOpcionales = [
+        "Pago total",
+        "Pago Cuota 1",
+        "Pago Cuota 2",
+        "Fecha emision",
+        "Fecha de vencimiento"
+      ];
+      camposOpcionales.forEach(campo => {
+        if (!datos[campo] || datos[campo].trim() === "") {
+          datos[campo] = "No aplica";
+        }
+      });
+      bestEffortValidationPermisoCirculacion(datos, file.name);
       break;
     default:
       throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }
 
-  return { datos, titulo };
+  // Validación extra: se aplica solo para formatos distintos a PERMISO_CIRCULACION,
+  // ya que en este caso permitimos que ciertos campos opcionales estén vacíos (o se sustituyan por "No aplica").
+  if (formatoDetectado !== "PERMISO_CIRCULACION") {
+    const invalidFields = Object.entries(datos).filter(
+      ([, value]) => !value || value.trim().length < 3
+    );
+    if (invalidFields.length > 0) {
+      const campos = invalidFields.map(([campo]) => campo).join(", ");
+      throw new Error(
+        `El archivo ${file.name} tiene datos insuficientes en los siguientes campos: ${campos}.`
+      );
+    }
+  }
+
+  return { datos, titulo, regexes };
 }

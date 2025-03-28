@@ -3,14 +3,11 @@ import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { procesarPDF, sanitizarNombre } from "@/utils/pdfUtils";
 import { generateExcel } from "@/utils/excelUtils";
-
-
 import { isValidPDF } from "@/utils/fileUtils";
 import logger from "@/utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
 export const runtime = "nodejs";
-
 const limit = pLimit(3);
 
 type ConversionSuccess = {
@@ -100,16 +97,21 @@ export async function POST(request: Request) {
       })
       .filter(Boolean) as ConversionFailure[];
 
+    // Mensajes personalizados por formato
     let formatMessage = "";
-    if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
-      formatMessage =
-        "Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
-    } else if (pdfFormat === "CRT") {
-      formatMessage =
-        "Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
-    } else if (pdfFormat === "SOAP") {
-      formatMessage =
-        "Este botón es para PDF SOAP (Seguro Obligatorio). Por favor, coloque solo el PDF correspondiente a este formato.";
+    switch (pdfFormat) {
+      case "CERTIFICADO_DE_HOMOLOGACION":
+        formatMessage = "Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
+        break;
+      case "CRT":
+        formatMessage = "Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
+        break;
+      case "SOAP":
+        formatMessage = "Este botón es para PDF SOAP (Seguro Obligatorio). Por favor, coloque solo el PDF correspondiente a este formato.";
+        break;
+      case "PERMISO_CIRCULACION":
+        formatMessage = "Este botón es para Permisos de Circulación. Por favor, sube solo archivos PDF correspondientes a este tipo de documento.";
+        break;
     }
 
     const registros = exitosos.map((r) => r.datos);
@@ -119,16 +121,21 @@ export async function POST(request: Request) {
     if (exitosos.length === 0) {
       let errorMsg =
         "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
-      if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
-        errorMsg =
-          "No se encontraron datos para generar el Excel. Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
-      } else if (pdfFormat === "CRT") {
-        errorMsg =
-          "No se encontraron datos para generar el Excel. Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
-      } else if (pdfFormat === "SOAP") {
-        errorMsg =
-          "No se encontraron datos para generar el Excel. Este botón es para PDF SOAP. Por favor, coloque solo el PDF correspondiente a este formato.";
+      switch (pdfFormat) {
+        case "CERTIFICADO_DE_HOMOLOGACION":
+          errorMsg = "No se encontraron datos para generar el Excel. Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
+          break;
+        case "CRT":
+          errorMsg = "No se encontraron datos para generar el Excel. Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
+          break;
+        case "SOAP":
+          errorMsg = "No se encontraron datos para generar el Excel. Este botón es para PDF SOAP. Por favor, coloque solo el PDF correspondiente a este formato.";
+          break;
+        case "PERMISO_CIRCULACION":
+          errorMsg = "No se encontraron datos para generar el Excel. Este botón es para Permisos de Circulación. Por favor, coloque solo el PDF correspondiente a este formato.";
+          break;
       }
+
       return NextResponse.json(
         {
           error: errorMsg,
@@ -149,6 +156,7 @@ export async function POST(request: Request) {
     if (files.length === 1 && exitosos[0]?.titulo) {
       tituloExtraido = exitosos[0].titulo;
     }
+
     const nombreArchivo =
       files.length === 1 && tituloExtraido
         ? sanitizarNombre(tituloExtraido)

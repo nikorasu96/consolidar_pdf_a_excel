@@ -169,6 +169,13 @@ export default function Home() {
                 >
                   SOAP (Seguro Obligatorio)
                 </button>
+                <button
+                  type="button"
+                  className={pdfFormat === "PERMISO_CIRCULACION" ? "btn btn-primary" : "btn btn-outline-primary"}
+                  onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
+                >
+                  Permiso de Circulación
+                </button>
               </div>
             </div>
             <div className="d-flex gap-2 mt-3">

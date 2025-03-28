@@ -1,5 +1,4 @@
 // src/extractors/soapExtractor.ts
-
 import { buscar } from "@/utils/pdfUtils";
 import logger from "@/utils/logger";
 
@@ -14,7 +13,7 @@ export function extraerDatosSoapSimplificado(text: string): Record<string, strin
 
   // INSCRIPCION R.V.M:
   // Ejemplo: "INSCRIPCION R.V.M.: LXWJ75-4"
-  const inscripcionRegex = /INSCRIPCION\s*R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*:\s*([A-Z0-9\-]+)/i;
+  const inscripcionRegex = /INSCRIPC[ÍI]ON\s*R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*(?::|\-)?\s*([A-Z0-9]+(?:\s*-\s*[A-Z0-9]+)*)/i;
   const inscripcion = (buscar(t, inscripcionRegex) || "").trim();
 
   // Bajo el código
@@ -52,34 +51,6 @@ export function extraerDatosSoapSimplificado(text: string): Record<string, strin
 
   logger.debug("Datos extraídos SOAP Simplificado (flexible):", data);
   return data;
-}
-
-/**
- * Función de extracción "alternativa" para SOAP.
- */
-export function extraerDatosSoapAlternativo(text: string): Record<string, string> {
-  const t = text.replace(/\r?\n|\r/g, " ");
-  const inscripcion = (buscar(t, /INSCRIPCION\s*R\s*\.?\s*V\s*\.?\s*M\s*[:]\s*([A-Z0-9\-]+)/i) || "").trim();
-  const bajoCodigo = buscar(t, /Bajo\s+el\s+c[óo]digo\s*:?\s*([A-Z0-9\-]+)/i) || "";
-  
-  const rutMatch = t.match(/RUT\s*:?\s*([\d]{1,3}(?:[.\s]*\d{3})+|\d{7,8})\s*[-]\s*([0-9kK])/i);
-  const rut = rutMatch ? `${rutMatch[1].replace(/[.\s]/g, "")}-${rutMatch[2]}` : "";
-  
-  const rigeDesde = buscar(t, /RIGE\s+DESDE\s*:?\s*(\d{2}[-\/]\d{2}[-\/]\d{4})/i) || "";
-  const hasta = buscar(t, /HAST(?:\s*A)?\s*[:\-]?\s*(\d{2}[-\/]\d{2}[-\/]\d{4}|[A-Z]+\s+\d{4})/i) ||
-                buscar(t, /HASTA\s*[:\-]?\s*(\d{2}[-\/]\d{2}[-\/]\d{4})/i) || "";
-  const poliza = buscar(t, /POLIZA\s*N[°º]?\s*:?\s*([A-Z0-9\-]+)/i) || "";
-  const prima = buscar(t, /PRIMA\s*:?\s*([\d\.,]+)/i) || "";
-
-  return {
-    "INSCRIPCION R.V.M": inscripcion,
-    "Bajo el codigo": bajoCodigo,
-    "RUT": rut,
-    "RIGE DESDE": rigeDesde,
-    "HASTA": hasta,
-    "POLIZA N°": poliza,
-    "PRIMA": prima,
-  };
 }
 
 /**

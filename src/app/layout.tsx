@@ -1,19 +1,13 @@
 // src/app/layout.tsx
-
-// Importación de estilos de Bootstrap y estilos globales personalizados.
+import Head from "next/head";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";
 
-// Metadatos de la aplicación que pueden ser utilizados en el HTML para SEO, título, descripción, etc.
 export const metadata = {
   title: "Convertidor PDF a EXCEL",
   description: "Next.js 13 + TypeScript + Bootstrap + PDF to Excel",
 };
 
-/**
- * Componente de layout raíz que envuelve toda la aplicación.
- * Recibe los children (componentes hijos) y los renderiza dentro de la estructura HTML básica.
- */
 export default function RootLayout({
   children,
 }: {
@@ -21,6 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <Head>
+        <title>{metadata.title}</title>
+        <meta name="description" content={metadata.description} />
+      </Head>
       <body>{children}</body>
     </html>
   );

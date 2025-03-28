@@ -148,28 +148,30 @@ export async function procesarPDF(
       // por lo tanto, si algún otro campo está vacío, la validación final lo detectará.
       bestEffortValidationSoap(datos, file.name);
       break;
-    case "PERMISO_CIRCULACION":
-      // Se extraen los datos específicos para permisos de circulación.
-      const result = extraerDatosPermisoCirculacion(allText);
-      datos = result.data;
-      if (returnRegex) {
-        regexes = result.regexes;
-      }
-      // Reemplazo de campos opcionales vacíos por "No aplica"
-      const camposOpcionales = [
-        "Pago total",
-        "Pago Cuota 1",
-        "Pago Cuota 2",
-        "Fecha emision",
-        "Fecha de vencimiento"
-      ];
-      camposOpcionales.forEach((campo) => {
-        if (!datos[campo] || datos[campo].trim() === "") {
-          datos[campo] = "No aplica";
+      case "PERMISO_CIRCULACION":
+        // Se extraen los datos específicos para permisos de circulación.
+        const result = extraerDatosPermisoCirculacion(allText);
+        datos = result.data;
+        if (returnRegex) {
+          regexes = result.regexes;
         }
-      });
-      bestEffortValidationPermisoCirculacion(datos, file.name);
-      break;
+        // Reemplazo de campos opcionales vacíos por "No aplica"
+        // Se unifica la clave "Fecha de emisión" para evitar duplicidad
+        const camposOpcionales = [
+          "Pago total",
+          "Pago Cuota 1",
+          "Pago Cuota 2",
+          "Fecha de emisión",
+          "Fecha de vencimiento"
+        ];
+        camposOpcionales.forEach((campo) => {
+          if (!datos[campo] || datos[campo].trim() === "") {
+            datos[campo] = "No aplica";
+          }
+        });
+        bestEffortValidationPermisoCirculacion(datos, file.name);
+        break;
+      
     default:
       throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }

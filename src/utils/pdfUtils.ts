@@ -135,6 +135,17 @@ export async function procesarPDF(
       break;
     case "SOAP":
       datos = extraerDatosSoapSimplificado(allText);
+      // Validación específica para INSCRIPCION R.V.M:
+      // Se espera que tenga 4 letras, 2 dígitos, un guion (con o sin espacios) y 1 carácter alfanumérico.
+      const inscripcion = datos["INSCRIPCION R.V.M"];
+      const inscripcionPattern = /^[A-Z]{4}[0-9]{2}\s*-\s*[0-9A-Z]$/;
+      if (!inscripcion || !inscripcionPattern.test(inscripcion)) {
+        throw new Error(
+          `El archivo ${file.name} tiene un formato inválido en INSCRIPCION R.V.M: "${inscripcion}". Formato esperado: "LXWJ75-4" o similar.`
+        );
+      }
+      // No se realiza el reemplazo de campos vacíos;
+      // por lo tanto, si algún otro campo está vacío, la validación final lo detectará.
       bestEffortValidationSoap(datos, file.name);
       break;
     case "PERMISO_CIRCULACION":
@@ -152,7 +163,7 @@ export async function procesarPDF(
         "Fecha emision",
         "Fecha de vencimiento"
       ];
-      camposOpcionales.forEach(campo => {
+      camposOpcionales.forEach((campo) => {
         if (!datos[campo] || datos[campo].trim() === "") {
           datos[campo] = "No aplica";
         }
@@ -163,8 +174,8 @@ export async function procesarPDF(
       throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }
 
-  // Validación extra: se aplica solo para formatos distintos a PERMISO_CIRCULACION,
-  // ya que en este caso permitimos que ciertos campos opcionales estén vacíos (o se sustituyan por "No aplica").
+  // Validación extra: se aplica solo para formatos distintos a PERMISO_CIRCULACION.
+  // Si algún campo resulta vacío o tiene menos de 3 caracteres, se considera error.
   if (formatoDetectado !== "PERMISO_CIRCULACION") {
     const invalidFields = Object.entries(datos).filter(
       ([, value]) => !value || value.trim().length < 3

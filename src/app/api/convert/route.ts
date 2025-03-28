@@ -8,7 +8,7 @@ import logger from "@/utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
 export const runtime = "nodejs";
-const limit = pLimit(3);
+const limit = pLimit(5);
 
 type ConversionSuccess = {
   fileName: string;

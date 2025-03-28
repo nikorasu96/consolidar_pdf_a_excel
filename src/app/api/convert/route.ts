@@ -1,9 +1,12 @@
+// src/app/api_convert/route.ts
 import { NextResponse } from "next/server";
 import pLimit from "p-limit";
-import { procesarPDF, sanitizarNombre } from "../../../utils/pdfUtils";
-import { generateExcel } from "../../../utils/excelUtils";
-import { isValidPDF } from "../../../utils/fileUtils";
-import logger from "../../../utils/logger";
+import { procesarPDF, sanitizarNombre } from "@/utils/pdfUtils";
+import { generateExcel } from "@/utils/excelUtils";
+
+
+import { isValidPDF } from "@/utils/fileUtils";
+import logger from "@/utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
 export const runtime = "nodejs";
@@ -110,11 +113,9 @@ export async function POST(request: Request) {
     }
 
     const registros = exitosos.map((r) => r.datos);
-
     const groupedExitosos = groupByFileName(exitosos);
     const groupedFallidos = groupFailures(fallidos);
 
-    // Si no hubo archivos convertidos, se retorna la info y un error, sin generar Excel
     if (exitosos.length === 0) {
       let errorMsg =
         "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";

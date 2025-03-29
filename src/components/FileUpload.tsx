@@ -1,19 +1,19 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, DragEvent } from "react";
 import { isValidPDF } from "../utils/fileUtils";
 
 interface FileUploadProps {
   onFilesChange: (files: FileList | null) => void;
-  clearTrigger: boolean; // NUEVO: indica cuándo debemos limpiar
+  clearTrigger: boolean;
 }
 
 export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Cuando clearTrigger cambie a true, limpiamos el input y los estados
   useEffect(() => {
     if (clearTrigger && inputRef.current) {
       inputRef.current.value = "";
@@ -23,16 +23,13 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
     }
   }, [clearTrigger, onFilesChange]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const handleFiles = (files: FileList | null) => {
     if (files) {
       const fileArray = Array.from(files);
       for (let i = 0; i < fileArray.length; i++) {
         if (!isValidPDF(fileArray[i])) {
-          setError(
-            `El archivo ${fileArray[i].name} no es un PDF válido o excede el tamaño permitido.`
-          );
-          e.target.value = "";
+          setError(`El archivo ${fileArray[i].name} no es un PDF válido o excede el tamaño permitido.`);
+          if (inputRef.current) inputRef.current.value = "";
           setSelectedFiles([]);
           onFilesChange(null);
           return;
@@ -47,31 +44,87 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files);
+  };
+
+  // Manejo de eventos Drag & Drop
+  const handleDrag = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
+      e.dataTransfer.clearData();
+    }
+  };
+
+  const triggerFileSelect = () => {
+    if (inputRef.current) {
+      inputRef.current.click();
+    }
+  };
+
   return (
-    <div className="mb-3">
-      <label htmlFor="pdf-upload" className="form-label">
-        Selecciona tus archivos PDF:
-      </label>
+    <div>
+      <div
+        className={`border rounded p-4 text-center ${dragActive ? "bg-light" : ""}`}
+        style={{ borderStyle: "dashed", cursor: "pointer" }}
+        onDragEnter={handleDrag}
+        onDragOver={handleDrag}
+        onDragLeave={handleDrag}
+        onDrop={handleDrop}
+        onClick={triggerFileSelect}
+      >
+        <p className="fw-bold mb-1">Arrastra y suelta tus archivos PDF aquí</p>
+        <p className="text-muted small mb-3">(o haz clic para seleccionarlos manualmente)</p>
+
+        {/* Botón (opcional) para destacar la acción de subir archivos */}
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ pointerEvents: "none" }}
+        >
+          <i className="bi bi-upload me-2"></i>
+          Seleccionar Archivos
+        </button>
+      </div>
+
       <input
         id="pdf-upload"
-        ref={inputRef} // Referencia al input
+        ref={inputRef}
         type="file"
         name="pdf"
         accept="application/pdf"
         multiple
-        className="form-control"
+        className="d-none"
         onChange={handleChange}
       />
 
+      {/* Mensaje de error */}
       {error && (
         <div className="alert alert-danger mt-2" role="alert">
           {error}
         </div>
       )}
 
+      {/* Lista de archivos centrada */}
       {selectedFiles.length > 0 && (
-        <div style={{ maxHeight: "200px", overflowY: "auto" }} className="mt-2">
-          <ul className="list-group">
+        <div
+          className="mt-2 d-flex justify-content-center"
+          style={{ maxHeight: "150px", overflowY: "auto" }}
+        >
+          <ul className="list-group text-center" style={{ width: "fit-content" }}>
             {selectedFiles.map((file, index) => (
               <li key={index} className="list-group-item">
                 {file.name}

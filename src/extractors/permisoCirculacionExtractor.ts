@@ -9,29 +9,29 @@ import logger from "@/utils/logger";
  *   - regexes: las expresiones regulares utilizadas para cada campo (Record<string, RegExp>)
  */
 export function extraerDatosPermisoCirculacion(text: string): { data: Record<string, string>; regexes: Record<string, RegExp> } {
-  // Unificamos los saltos de línea para facilitar la búsqueda
+  // Unificar saltos de línea
   const t = text.replace(/\r?\n|\r/g, " ");
 
   const regexes: Record<string, RegExp> = {
-    // Placa Única: captura secuencia de letras, números y guiones
+    // Placa Única: secuencia de letras, números y guiones
     "Placa Única": /Placa\s+Única\s*[:\-]?\s*([A-Z0-9\-]+)/i,
-    // Código SII: captura secuencia de letras y números
+    // Código SII: secuencia de letras y números
     "Código SII": /Codigo\s+SII\s*[:\-]?\s*([A-Z0-9]+)/i,
-    // Valor Permiso: captura dígitos
+    // Valor Permiso: dígitos
     "Valor Permiso": /Valor\s+Permiso\s*[:\-]?\s*(\d+)/i,
-    // Pago total: captura "X" si se marca; de lo contrario, queda vacío
+    // Pago total: captura "X" si se marca, de lo contrario queda vacío
     "Pago total": /Pago\s+total\s*[:\-]?\s*(X)?/i,
     // Pago Cuota 1: captura "X" si se marca
     "Pago Cuota 1": /Pago\s+cuota\s+1\s*[:\-]?\s*(X)?/i,
     // Pago Cuota 2: captura "X" si se marca
     "Pago Cuota 2": /Pago\s+cuota\s+2\s*[:\-]?\s*(X)?/i,
-    // Total a pagar: captura dígitos
+    // Total a pagar: dígitos
     "Total a pagar": /Total\s+a\s+pagar\s*[:\-]?\s*(\d+)/i,
-    // Fecha de emisión: formato dd/mm/yyyy
-    "Fecha de emisión": /Fecha\s+emisi[oó]n\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i,
-    // Fecha de vencimiento: formato dd/mm/yyyy
-    "Fecha de vencimiento": /Fecha\s+Vencimiento\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i,
-    // Forma de Pago: se capturan caracteres alfanuméricos (una palabra)
+    // Fecha de emisión: admite "Fecha de emisión:" o "Fecha emisión:" en formato dd/mm/yyyy
+    "Fecha de emisión": /Fecha(?:\s+de)?\s+emisi[oó]n\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i,
+    // Fecha de vencimiento: admite "Fecha de vencimiento:" o "Fecha vencimiento:" en formato dd/mm/yyyy
+    "Fecha de vencimiento": /Fecha(?:\s+de)?\s+vencimiento\s*[:\-]?\s*(\d{2}\/\d{2}\/\d{4})/i,
+    // Forma de Pago: captura una palabra (alfanumérica)
     "Forma de Pago": /Forma\s+de\s+Pago\s*[:\-]?\s*(\w+)/i,
   };
 
@@ -40,11 +40,17 @@ export function extraerDatosPermisoCirculacion(text: string): { data: Record<str
     data[key] = buscar(t, regexes[key]) || "";
   }
 
-  // Normalización: para cualquier campo que resulte en cadena vacía,
-  // asignamos "No aplica"
+  // Normalización:
+  // Si un campo está vacío:
+  // - Para "Pago total", "Pago Cuota 1" y "Pago Cuota 2" se asigna "No aplica"
+  // - Para los demás se deja como cadena vacía ("")
   for (const key in data) {
     if (data[key].trim() === "") {
-      data[key] = "No aplica";
+      if (["Pago total", "Pago Cuota 1", "Pago Cuota 2"].includes(key)) {
+        data[key] = "No aplica";
+      } else {
+        data[key] = "";
+      }
     }
   }
 
@@ -54,36 +60,37 @@ export function extraerDatosPermisoCirculacion(text: string): { data: Record<str
 
 /**
  * Validación "best-effort" para Permiso de Circulación.
- * Si el valor es "No aplica", se considera válido; de lo contrario,
- * se valida contra el patrón esperado.
+ * - Para campos obligatorios (Placa Única, Código SII, Valor Permiso, Total a pagar, Fecha de emisión, Fecha de vencimiento, Forma de Pago)
+ *   se requiere que tengan al menos 3 caracteres.
+ * - Los campos de pago ("Pago total", "Pago Cuota 1", "Pago Cuota 2") se validan contra su patrón.
  */
 export function bestEffortValidationPermisoCirculacion(datos: Record<string, string>, fileName: string): void {
-  const expectedPatterns: Record<string, RegExp> = {
-    "Placa Única": /^[A-Z0-9\-]+$/i,
-    "Código SII": /^[A-Z0-9]+$/i,
-    "Valor Permiso": /^\d+$/i,
+  const warnings: string[] = [];
+
+  // Validar campos obligatorios (no de pago)
+  const obligatorios = ["Placa Única", "Código SII", "Valor Permiso", "Total a pagar", "Fecha de emisión", "Fecha de vencimiento", "Forma de Pago"];
+  for (const field of obligatorios) {
+    const value = datos[field];
+    if (!value || value.trim().length < 3) {
+      warnings.push(`Campo "${field}" es obligatorio y debe tener al menos 3 caracteres.`);
+    }
+  }
+
+  // Validar campos de pago
+  const pagos = ["Pago total", "Pago Cuota 1", "Pago Cuota 2"];
+  const pagosPattern: Record<string, RegExp> = {
     "Pago total": /^(X|No aplica)$/i,
     "Pago Cuota 1": /^(X|No aplica)$/i,
     "Pago Cuota 2": /^(X|No aplica)$/i,
-    "Total a pagar": /^\d+$/i,
-    "Fecha de emisión": /^(\d{2}\/\d{2}\/\d{4}|No aplica)$/i,
-    "Fecha de vencimiento": /^(\d{2}\/\d{2}\/\d{4}|No aplica)$/i,
-    "Forma de Pago": /^(\w+|No aplica)$/i,
   };
-
-  const warnings: string[] = [];
-  for (const [field, pattern] of Object.entries(expectedPatterns)) {
+  for (const field of pagos) {
     const value = datos[field];
-    // Si el valor es "No aplica", lo consideramos válido
-    if (value === "No aplica") continue;
-    if (!pattern.test(value)) {
+    if (!pagosPattern[field].test(value)) {
       warnings.push(`Campo "${field}" con valor "${value}" no es válido.`);
     }
   }
 
   if (warnings.length > 0) {
-    logger.warn(
-      `BEST-EFFORT: El archivo ${fileName} presenta problemas:\n - ${warnings.join("\n - ")}`
-    );
+    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas:\n - ${warnings.join("\n - ")}`);
   }
 }

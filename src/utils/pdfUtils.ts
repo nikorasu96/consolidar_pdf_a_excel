@@ -64,7 +64,6 @@ export async function parsePDFBuffer(file: File): Promise<string> {
     throw new Error("El PDF no contiene texto extraíble o el formato no es válido");
   }
 
-  // Limitar la impresión de log para evitar saturación
   const maxLogLength = 500;
   const logOutput =
     allText.length > maxLogLength ? allText.slice(0, maxLogLength) + "..." : allText;
@@ -83,8 +82,7 @@ export async function procesarPDF(
   let titulo: string | undefined;
   let regexes: Record<string, RegExp> | undefined;
 
-  // Función de detección del formato actualizada:
-  // Para PERMISO_CIRCULACION se detecta si el texto (en minúsculas) contiene "permiso de circulación" y "placa".
+  // Función de detección del formato:
   const detectarFormato = (texto: string): PDFFormat | "DESCONOCIDO" => {
     if (texto.includes("CERTIFICADO DE HOMOLOGACIÓN")) {
       return "CERTIFICADO_DE_HOMOLOGACION";
@@ -114,9 +112,18 @@ export async function procesarPDF(
 
   const formatoDetectado = detectarFormato(allText);
 
+  // Mapeo para mostrar el nombre completo de cada formato
+  const nombresFormato: Record<string, string> = {
+    CERTIFICADO_DE_HOMOLOGACION: "Certificado de Homologación",
+    CRT: "Certificado de Revisión Técnica (CRT)",
+    SOAP: "Seguro Obligatorio (SOAP)",
+    PERMISO_CIRCULACION: "Permiso de Circulación",
+    DESCONOCIDO: "Formato Desconocido",
+  };
+
   if (pdfFormat && formatoDetectado !== pdfFormat) {
     throw new Error(
-      `El archivo ${file.name} no corresponde al formato esperado ${pdfFormat}. Se detectó: ${formatoDetectado}.`
+      `El archivo ${file.name} no corresponde al formato esperado ${nombresFormato[pdfFormat]}. Se detectó que pertenece a: ${nombresFormato[formatoDetectado]}.`
     );
   }
 
@@ -135,8 +142,6 @@ export async function procesarPDF(
       break;
     case "SOAP":
       datos = extraerDatosSoapSimplificado(allText);
-      // Validación específica para INSCRIPCION R.V.M:
-      // Se espera que tenga 4 letras, 2 dígitos, un guion (con o sin espacios) y 1 carácter alfanumérico.
       const inscripcion = datos["INSCRIPCION R.V.M"];
       const inscripcionPattern = /^[A-Z]{4}[0-9]{2}\s*-\s*[0-9A-Z]$/;
       if (!inscripcion || !inscripcionPattern.test(inscripcion)) {
@@ -144,40 +149,32 @@ export async function procesarPDF(
           `El archivo ${file.name} tiene un formato inválido en INSCRIPCION R.V.M: "${inscripcion}". Formato esperado: "LXWJ75-4" o similar.`
         );
       }
-      // No se realiza el reemplazo de campos vacíos;
-      // por lo tanto, si algún otro campo está vacío, la validación final lo detectará.
       bestEffortValidationSoap(datos, file.name);
       break;
-      case "PERMISO_CIRCULACION":
-        // Se extraen los datos específicos para permisos de circulación.
-        const result = extraerDatosPermisoCirculacion(allText);
-        datos = result.data;
-        if (returnRegex) {
-          regexes = result.regexes;
+    case "PERMISO_CIRCULACION":
+      const result = extraerDatosPermisoCirculacion(allText);
+      datos = result.data;
+      if (returnRegex) {
+        regexes = result.regexes;
+      }
+      const camposOpcionales = [
+        "Pago total",
+        "Pago Cuota 1",
+        "Pago Cuota 2",
+        "Fecha de emisión",
+        "Fecha de vencimiento"
+      ];
+      camposOpcionales.forEach((campo) => {
+        if (!datos[campo] || datos[campo].trim() === "") {
+          datos[campo] = "No aplica";
         }
-        // Reemplazo de campos opcionales vacíos por "No aplica"
-        // Se unifica la clave "Fecha de emisión" para evitar duplicidad
-        const camposOpcionales = [
-          "Pago total",
-          "Pago Cuota 1",
-          "Pago Cuota 2",
-          "Fecha de emisión",
-          "Fecha de vencimiento"
-        ];
-        camposOpcionales.forEach((campo) => {
-          if (!datos[campo] || datos[campo].trim() === "") {
-            datos[campo] = "No aplica";
-          }
-        });
-        bestEffortValidationPermisoCirculacion(datos, file.name);
-        break;
-      
+      });
+      bestEffortValidationPermisoCirculacion(datos, file.name);
+      break;
     default:
       throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }
 
-  // Validación extra: se aplica solo para formatos distintos a PERMISO_CIRCULACION.
-  // Si algún campo resulta vacío o tiene menos de 3 caracteres, se considera error.
   if (formatoDetectado !== "PERMISO_CIRCULACION") {
     const invalidFields = Object.entries(datos).filter(
       ([, value]) => !value || value.trim().length < 3

@@ -1,11 +1,9 @@
 // src/app/api_convert/route.ts
 import { NextResponse } from "next/server";
 import pLimit from "p-limit";
-import { Worker } from "worker_threads";
-import path from "path";
 import { procesarPDF, sanitizarNombre } from "@/utils/pdfUtils";
 import { generateExcel } from "@/utils/excelUtils";
-import { isValidPDF } from "@/utils/fileUtils";
+import { isValidPDF, isPDFContentValid } from "@/utils/fileUtils";
 import logger from "@/utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
@@ -54,53 +52,16 @@ function groupFailures(failures: ConversionFailure[]) {
 }
 
 /**
- * Intenta procesar el archivo PDF usando un worker thread.
- * Si el worker falla, se recurre a la función procesarPDF original.
+ * Procesa el PDF directamente sin usar un worker.
  */
-async function runWorkerWithFallback(file: File, pdfFormat: PDFFormat, returnRegex: boolean): Promise<ConversionSuccess> {
-  // Se construye la ruta al worker: se asume que "workers" está en la raíz del proyecto.
-  const workerPath = path.resolve(process.cwd(), "workers", "pdfWorker.js");
-  try {
-    return await new Promise<ConversionSuccess>((resolve, reject) => {
-      const worker = new Worker(workerPath);
-      file.arrayBuffer()
-        .then((arrayBuffer) => {
-          const fileBuffer = Buffer.from(arrayBuffer);
-          worker.postMessage({ fileBuffer, fileName: file.name, pdfFormat, returnRegex });
-        })
-        .catch((err) => {
-          worker.terminate();
-          reject(err);
-        });
-      worker.on("message", (message) => {
-        if (message.success) {
-          resolve({
-            fileName: message.fileName,
-            datos: message.result.datos,
-            titulo: message.result.titulo,
-            regexes: message.result.regexes || null,
-          });
-        } else {
-          reject(new Error(message.error));
-        }
-      });
-      worker.on("error", reject);
-      worker.on("exit", (code) => {
-        if (code !== 0) {
-          reject(new Error(`Worker stopped with exit code ${code}`));
-        }
-      });
-    });
-  } catch (error: any) {
-    logger.warn(`Worker falló para ${file.name}: ${error.message}. Se utiliza procesamiento directo.`);
-    const result = await procesarPDF(file, pdfFormat, returnRegex);
-    return {
-      fileName: file.name,
-      datos: result.datos,
-      titulo: result.titulo,
-      regexes: result.regexes || null,
-    };
-  }
+async function processPDFDirect(file: File, pdfFormat: PDFFormat, returnRegex: boolean): Promise<ConversionSuccess> {
+  const result = await procesarPDF(file, pdfFormat, returnRegex);
+  return {
+    fileName: file.name,
+    datos: result.datos,
+    titulo: result.titulo,
+    regexes: result.regexes || null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -116,10 +77,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validamos cada archivo: tipo, tamaño y contenido
     for (const file of files) {
       if (!isValidPDF(file)) {
         return NextResponse.json(
           { error: `El archivo ${file.name} no es válido o excede el tamaño permitido.` },
+          { status: 400 }
+        );
+      }
+      if (!(await isPDFContentValid(file))) {
+        return NextResponse.json(
+          { error: `El contenido del archivo ${file.name} no es válido.` },
           { status: 400 }
         );
       }
@@ -128,13 +96,9 @@ export async function POST(request: Request) {
     // Activa el retorno de regex solo para PERMISO_CIRCULACION.
     const returnRegex = pdfFormat === "PERMISO_CIRCULACION";
 
-    // Se procesa cada archivo utilizando el worker (con fallback)
+    // Se procesa cada archivo directamente sin usar worker
     const conversionResults = await Promise.allSettled<ConversionSuccess>(
-      files.map((file) =>
-        limit(() =>
-          runWorkerWithFallback(file, pdfFormat, returnRegex)
-        )
-      )
+      files.map((file) => limit(() => processPDFDirect(file, pdfFormat, returnRegex)))
     );
 
     const exitosos = conversionResults.filter(isFulfilled).map((res) => res.value);

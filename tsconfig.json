@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -14,27 +18,30 @@
     "jsx": "preserve",
     "incremental": true,
     "baseUrl": ".",
-    "types": ["node", "jest"],
+    "types": [
+      "node",
+      "jest"
+    ],
     "plugins": [
       {
         "name": "next"
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
-    },
+      "@/*": [
+        "./src/*"
+      ]
+    }
   },
   "include": [
+    "**/*.test.ts",
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "global.d.ts",
-    "types",
-    ".next/types/**/*.ts",
-    "next-env.d.ts", "**/*.ts", "**/*.tsx",".next/types/**/*.ts" ,".next/types/**/*.ts",  ".next/types/**/*.ts",
-    // Asegúrate que los test también estén cubiertos (si no usas "**/*.ts" ya).
-    "**/*.test.ts", "src", "workers/pdfWorker.js",
+    "src",
+    "workers/**/*",
+    "workers/pdfWorker.js",
+    ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

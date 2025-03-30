@@ -293,11 +293,10 @@ export default function Home() {
                   <div className="btn-group d-flex flex-wrap">
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
+                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
                           ? "btn-primary"
                           : "btn-outline-primary"
-                      } flex-fill m-1`}
+                        } flex-fill m-1`}
                       onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                       disabled={loading}
                     >
@@ -305,9 +304,8 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
+                        } flex-fill m-1`}
                       onClick={() => handleFormatChange("CRT")}
                       disabled={loading}
                     >
@@ -315,9 +313,8 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
+                        } flex-fill m-1`}
                       onClick={() => handleFormatChange("SOAP")}
                       disabled={loading}
                     >
@@ -325,11 +322,10 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "PERMISO_CIRCULACION"
+                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION"
                           ? "btn-primary"
                           : "btn-outline-primary"
-                      } flex-fill m-1`}
+                        } flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
                     >
@@ -418,13 +414,18 @@ export default function Home() {
                     <ul className="list-group text-center">
                       {fallidos.map((item, index) => (
                         <li key={index} className="list-group-item">
-                          {item.fileName} - {item.error}
+                          {item.fileName} -{" "}
+                          <span
+                            style={{ backgroundColor: "yellow", fontWeight: "bold" }}
+                            dangerouslySetInnerHTML={{ __html: item.error }}
+                          />
                         </li>
                       ))}
                     </ul>
                   </div>
                 </div>
               )}
+
 
               {/* Vista previa del Excel */}
               {previewData && (

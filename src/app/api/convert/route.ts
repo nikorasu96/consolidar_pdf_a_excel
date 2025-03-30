@@ -149,15 +149,13 @@ export async function POST(request: Request) {
               const remaining = totalFiles - processedCount;
               const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
 
-              // Ajustamos el mensaje si detectamos un formato distinto
               let errorMsg = error.message || "Error desconocido";
+              // Si el mensaje contiene "Se detectó que pertenece a:", lo reemplazamos por una versión con fondo amarillo y negrita.
               if (errorMsg.includes("Se detectó que pertenece a:")) {
-                const parts = errorMsg.split("Se detectó que pertenece a:");
-                if (parts.length > 1) {
-                  const detected = parts[1].trim();
-                  // Adjuntamos extra
-                  errorMsg += ` (Formato detectado: ${detected})`;
-                }
+                errorMsg = errorMsg.replace(
+                  /Se detectó que pertenece a:\s*(.*)/,
+                  '<span style="background-color: yellow; font-weight: bold;">Se detectó que pertenece a: $1</span>'
+                );
               }
 
               // Evento SSE de error para este archivo

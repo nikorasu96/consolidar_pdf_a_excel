@@ -38,8 +38,8 @@
     "next-env.d.ts",
     "src",
     ".next/types/**/*.ts",
-    "types",         // si tus definiciones están aquí
-    "global.d.ts"    // o si lo dejas en la raíz
+    "types",
+    "global.d.ts"
   ],
   "exclude": [
     "node_modules"

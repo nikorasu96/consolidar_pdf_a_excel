@@ -1,5 +1,4 @@
 // src/extractors/crtExtractor.ts
-import { buscar } from "@/utils/pdfUtils";
 import logger from "@/utils/logger";
 
 export function extraerDatosCRT(text: string): Record<string, string> {

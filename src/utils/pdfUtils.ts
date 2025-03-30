@@ -113,7 +113,7 @@ export async function procesarPDF(
   const formatoDetectado = detectarFormato(allText);
 
   // Mapeo para mostrar el nombre completo de cada formato
-  const nombresFormato: Record<string, string> = {
+  const nombresFormato: Record<PDFFormat | "DESCONOCIDO", string> = {
     CERTIFICADO_DE_HOMOLOGACION: "Certificado de Homologación",
     CRT: "Certificado de Revisión Técnica (CRT)",
     SOAP: "Seguro Obligatorio (SOAP)",

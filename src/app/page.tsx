@@ -162,9 +162,9 @@ export default function Home() {
               // Evento parcial de progreso
               if (data.progress !== undefined && data.total !== undefined) {
                 setProgressCount(data.progress);
-                setEstimatedSeconds(Math.round(data.estimatedMsLeft / 1000));
                 if (data.successes !== undefined) setTotalExitosos(data.successes);
                 if (data.failures !== undefined) setTotalFallidos(data.failures);
+                setEstimatedSeconds(Math.round(data.estimatedMsLeft / 1000));
               }
 
               // Evento final
@@ -174,7 +174,7 @@ export default function Home() {
                   setApiError(data.final.error);
                 }
 
-                // Resumen
+                // Resumen final
                 setTotalProcesados(data.final.totalProcesados);
                 setTotalExitosos(data.final.totalExitosos);
                 setTotalFallidos(data.final.totalFallidos);
@@ -182,7 +182,6 @@ export default function Home() {
 
                 // Listas de éxitos/fallas
                 if (data.final.exitosos) {
-                  // data.final.exitosos puede ser un array de { fileName, datos, ... }
                   setExitosos(data.final.exitosos);
                 }
                 if (data.final.fallidos) {
@@ -341,42 +340,42 @@ export default function Home() {
                 </div>
               </form>
 
-              {/* Progreso en tiempo real */}
-              {loading && (
-                <div className="my-3 text-center">
-                  <p>
-                    Archivos procesados: {progressCount} de {files ? files.length : 0}
-                  </p>
-                  <p>
-                    Exitosos: {totalExitosos} / Fallidos: {totalFallidos}
-                  </p>
-                  <p>Tiempo estimado restante: {formatTime(estimatedSeconds)}</p>
-                </div>
-              )}
-
-              {/* Resumen final */}
-              {(totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
+              {/* UN SOLO BLOQUE para tiempo real + resumen final */}
+              {(loading || totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
                   <h5 className="text-center">Resumen de Procesamiento</h5>
                   <div className="row text-center">
+                    {/* Procesados */}
                     <div className="col">
                       <p className="mb-0 fw-bold">Procesados</p>
-                      <p>{totalProcesados}</p>
+                      <p>
+                        {loading
+                          ? `${progressCount} de ${files ? files.length : 0}`
+                          : totalProcesados}
+                      </p>
                     </div>
+                    {/* Exitosos */}
                     <div className="col">
                       <p className="mb-0 fw-bold text-success">Exitosos</p>
                       <p>{totalExitosos}</p>
                     </div>
+                    {/* Fallidos */}
                     <div className="col">
                       <p className="mb-0 fw-bold text-danger">Fallidos</p>
                       <p>{totalFallidos}</p>
                     </div>
-                    {duration !== null && (
+                    {/* Tiempo restante o duración */}
+                    {loading ? (
+                      <div className="col">
+                        <p className="mb-0 fw-bold">Estimado</p>
+                        <p>{formatTime(estimatedSeconds)}</p>
+                      </div>
+                    ) : duration !== null ? (
                       <div className="col">
                         <p className="mb-0 fw-bold">Duración</p>
                         <p>{duration.toFixed(2)} s</p>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               )}

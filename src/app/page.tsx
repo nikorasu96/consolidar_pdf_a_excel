@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
-import InstructionsModal from "@/components/InstructionsModal";
+import InstructionsModal from "../components/InstructionsModal";
 import { validatePDFFiles } from "../utils/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
@@ -56,7 +56,7 @@ export default function Home() {
   const [progressCount, setProgressCount] = useState(0);
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
 
-  // ❗ Formato PDF seleccionado: inicia en null
+  // Formato PDF seleccionado: inicia en null
   const [pdfFormat, setPdfFormat] = useState<PDFFormat | null>(null);
 
   // Para limpiar el FileUpload
@@ -91,27 +91,18 @@ export default function Home() {
   };
 
   const handleFormatChange = (format: PDFFormat) => {
-    // Asignamos el formato
     setPdfFormat(format);
     resetResults();
   };
 
-  /**
-   * Limpia todo y NOTA: no definimos pdfFormat ("CERTIFICADO_DE_HOMOLOGACION")
-   * así arranca sin ningún botón seleccionado.
-   */
   const handleLimpiar = () => {
     setClearFileInput(true);
     setTimeout(() => setClearFileInput(false), 0);
     setFiles(null);
     resetResults();
-    //pdfFormat permanece en null
     setPdfFormat(null);
   };
 
-  /**
-   * Envía los archivos al endpoint /api/convert y procesa la respuesta SSE.
-   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!files || files.length === 0) {
@@ -119,13 +110,11 @@ export default function Home() {
       return;
     }
 
-    // ❗ Si no se ha seleccionado formato, no continuamos
     if (!pdfFormat) {
       alert("Por favor, selecciona un formato antes de convertir.");
       return;
     }
 
-    // Validación previa
     if (!validatePDFFiles(files)) {
       alert("Uno o más archivos no son válidos.");
       return;
@@ -154,18 +143,12 @@ export default function Home() {
       const decoder = new TextDecoder();
       let partial = "";
 
-      // Lectura del stream SSE
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-
-        // Decodificamos chunk
         partial += decoder.decode(value, { stream: true });
-        // Cada evento SSE se separa por doble salto de línea
         const events = partial.split("\n\n");
-        partial = events.pop() || ""; // lo que sobra se queda en partial
-
-        // Procesamos cada evento SSE
+        partial = events.pop() || "";
         for (const evt of events) {
           if (!evt.trim()) continue;
           const lines = evt.trim().split("\n");
@@ -175,7 +158,6 @@ export default function Home() {
               if (!jsonString.trim()) continue;
               const data = JSON.parse(jsonString);
 
-              // Evento parcial de progreso
               if (data.progress !== undefined && data.total !== undefined) {
                 setProgressCount(data.progress);
                 if (data.successes !== undefined) setTotalExitosos(data.successes);
@@ -183,28 +165,20 @@ export default function Home() {
                 setEstimatedSeconds(Math.round(data.estimatedMsLeft / 1000));
               }
 
-              // Evento final
               if (data.final) {
                 if (data.final.error) {
-                  // Error global (por ejemplo, no se encontraron datos)
                   setApiError(data.final.error);
                 }
-
-                // Resumen final
                 setTotalProcesados(data.final.totalProcesados);
                 setTotalExitosos(data.final.totalExitosos);
                 setTotalFallidos(data.final.totalFallidos);
                 setFormatMessage(data.final.message || "");
-
-                // Listas de éxitos/fallas
                 if (data.final.exitosos) {
                   setExitosos(data.final.exitosos);
                 }
                 if (data.final.fallidos) {
                   setFallidos(data.final.fallidos);
                 }
-
-                // Si hay Excel
                 if (data.final.excel) {
                   const byteCharacters = atob(data.final.excel);
                   const byteNumbers = new Array(byteCharacters.length);
@@ -217,16 +191,12 @@ export default function Home() {
                   });
                   setExcelBlob(blob);
                   setFileName(decodeURIComponent(data.final.fileName));
-
-                  // Cargamos la vista previa
                   const rows = await readXlsxFile(blob);
                   setPreviewData(rows);
                 } else {
                   setExcelBlob(null);
                   setPreviewData(null);
                 }
-
-                // Terminamos la lectura SSE
                 reader.cancel();
               }
             }
@@ -243,9 +213,6 @@ export default function Home() {
     }
   };
 
-  /**
-   * Descarga el Excel generado.
-   */
   const handleDownload = () => {
     if (excelBlob) {
       saveAs(excelBlob, fileName);
@@ -259,61 +226,46 @@ export default function Home() {
       )}
 
       <div className="row justify-content-center">
-        <div className="col-12 col-md-10 col-lg-8">
+        <div className="col-12 col-lg-10">
           <div className="card shadow-sm">
-            <div className="card-header text-center bg-gradient bg-primary text-white">
-              <h2 className="mb-0">Consolidar PDFs a Excel</h2>
+            <div className="card-header bg-primary text-white text-center py-3">
+              <h2 className="mb-0">Conversor de PDFs a Excel</h2>
             </div>
             <div className="card-body">
-              {/* Mensaje de error general */}
               {apiError && (
                 <div className="alert alert-warning text-center">{apiError}</div>
               )}
-
-              {/* Mensaje de formato */}
               {formatMessage && (
                 <div className="alert alert-info text-center">{formatMessage}</div>
               )}
 
               <form onSubmit={handleSubmit}>
-                {/* FileUpload (deshabilitado si está cargando) */}
-                <div
-                  style={{
-                    pointerEvents: loading ? "none" : "auto",
-                    opacity: loading ? 0.6 : 1,
-                  }}
-                >
+                <div className="mb-4">
                   <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
                 </div>
 
-                {/* Cantidad de archivos seleccionados */}
                 {files && files.length > 0 && (
-                  <div className="my-3 text-center">
+                  <div className="mb-3 text-center">
                     <span className="badge bg-info text-dark fs-5">
                       Archivos seleccionados: {files.length}
                     </span>
                   </div>
                 )}
 
-                {/* Botones de formato (ninguno seleccionado inicialmente) */}
-                <div className="mb-3">
+                <div className="mb-4">
                   <label className="form-label fw-bold">Selecciona el formato de PDF:</label>
                   <div className="btn-group d-flex flex-wrap">
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
-                          ? "btn-primary"
-                          : "btn-outline-primary"
-                        } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                       disabled={loading}
                     >
-                      CERTIFICADO DE HOMOLOGACIÓN
+                      Certificado de Homologación
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
-                        } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("CRT")}
                       disabled={loading}
                     >
@@ -321,8 +273,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
-                        } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("SOAP")}
                       disabled={loading}
                     >
@@ -330,10 +281,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION"
-                          ? "btn-primary"
-                          : "btn-outline-primary"
-                        } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
                     >
@@ -342,70 +290,58 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Botones de acción */}
-                <div className="d-flex justify-content-center gap-3 mt-4">
+                <div className="d-flex justify-content-center gap-3 mb-4">
                   <button type="submit" className="btn btn-success px-4" disabled={loading}>
                     {loading ? "Procesando..." : "Convertir"}
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary px-4"
-                    onClick={handleLimpiar}
-                    disabled={loading}
-                  >
+                  <button type="button" className="btn btn-secondary px-4" onClick={handleLimpiar} disabled={loading}>
                     Limpiar
                   </button>
                 </div>
               </form>
 
-              {/* Bloque de progreso en tiempo real y/o resumen final */}
+              {/* Resumen de procesamiento */}
               {(loading || totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
-                  <h5 className="text-center">Resumen de Procesamiento</h5>
+                  <h5 className="text-center mb-3">Resumen de Procesamiento</h5>
                   <div className="row text-center">
-                    {/* Procesados */}
-                    <div className="col">
-                      <p className="mb-0 fw-bold">Procesados</p>
-                      <p>
-                        {loading && files
-                          ? `${progressCount} de ${files.length}`
-                          : totalProcesados}
-                      </p>
+                    <div className="col-6 col-md-3 mb-2">
+                      <p className="fw-bold">Procesados</p>
+                      <p>{loading && files ? `${progressCount} de ${files.length}` : totalProcesados}</p>
                     </div>
-                    {/* Exitosos */}
-                    <div className="col">
-                      <p className="mb-0 fw-bold text-success">Exitosos</p>
+                    <div className="col-6 col-md-3 mb-2">
+                      <p className="fw-bold text-success">Exitosos</p>
                       <p>{totalExitosos}</p>
                     </div>
-                    {/* Fallidos */}
-                    <div className="col">
-                      <p className="mb-0 fw-bold text-danger">Fallidos</p>
+                    <div className="col-6 col-md-3 mb-2">
+                      <p className="fw-bold text-danger">Fallidos</p>
                       <p>{totalFallidos}</p>
                     </div>
-                    {/* Estimado o Duración */}
-                    {loading ? (
-                      <div className="col">
-                        <p className="mb-0 fw-bold">Estimado</p>
-                        <p>{formatTime(estimatedSeconds)}</p>
-                      </div>
-                    ) : duration !== null ? (
-                      <div className="col">
-                        <p className="mb-0 fw-bold">Duración</p>
-                        <p>{duration.toFixed(2)} s</p>
-                      </div>
-                    ) : null}
+                    <div className="col-6 col-md-3 mb-2">
+                      {loading ? (
+                        <>
+                          <p className="fw-bold">Estimado</p>
+                          <p>{formatTime(estimatedSeconds)}</p>
+                        </>
+                      ) : duration !== null ? (
+                        <>
+                          <p className="fw-bold">Duración</p>
+                          <p>{duration.toFixed(2)} s</p>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Panel de Archivos Exitosos */}
               {exitosos.length > 0 && (
-                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
-                  <h5 className="text-center">Archivos Exitosos</h5>
-                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
-                    <ul className="list-group text-center">
+                <div className="mt-4 p-3 bg-light rounded">
+                  <h5 className="text-center mb-2">Archivos Exitosos</h5>
+                  <div className="overflow-auto" style={{ maxHeight: "300px" }}>
+                    <ul className="list-group">
                       {exitosos.map((item, index) => (
-                        <li key={index} className="list-group-item">
+                        <li key={index} className="list-group-item text-center">
                           {item.fileName}
                         </li>
                       ))}
@@ -416,17 +352,14 @@ export default function Home() {
 
               {/* Panel de Archivos Fallidos */}
               {fallidos.length > 0 && (
-                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#f8d7da" }}>
-                  <h5 className="text-center">Archivos Fallidos</h5>
-                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
-                    <ul className="list-group text-center">
+                <div className="mt-4 p-3 bg-light rounded">
+                  <h5 className="text-center mb-2">Archivos Fallidos</h5>
+                  <div className="overflow-auto" style={{ maxHeight: "300px" }}>
+                    <ul className="list-group">
                       {fallidos.map((item, index) => (
-                        <li key={index} className="list-group-item">
+                        <li key={index} className="list-group-item text-center">
                           {item.fileName} -{" "}
-                          <span
-                            style={{ backgroundColor: "yellow", fontWeight: "bold" }}
-                            dangerouslySetInnerHTML={{ __html: item.error }}
-                          />
+                          <span className="bg-warning fw-bold" dangerouslySetInnerHTML={{ __html: item.error }} />
                         </li>
                       ))}
                     </ul>
@@ -438,10 +371,7 @@ export default function Home() {
               {previewData && (
                 <div className="mt-4">
                   <h5 className="mb-3 text-center">Vista Previa del Excel</h5>
-                  <div
-                    className="table-responsive"
-                    style={{ maxHeight: "400px", overflowY: "auto" }}
-                  >
+                  <div className="table-responsive overflow-auto" style={{ maxHeight: "400px" }}>
                     <table className="table table-bordered table-striped table-sm">
                       <thead className="table-light">
                         <tr>
@@ -462,10 +392,7 @@ export default function Home() {
                     </table>
                   </div>
                   <div className="d-flex justify-content-between align-items-center mt-3">
-                    <button
-                      className="btn btn-outline-secondary"
-                      onClick={() => setIsExpanded(true)}
-                    >
+                    <button className="btn btn-outline-secondary" onClick={() => setIsExpanded(true)}>
                       Expandir Vista
                     </button>
                     <button className="btn btn-success" onClick={handleDownload}>
@@ -481,20 +408,13 @@ export default function Home() {
 
       {/* Modal para Vista Expandida del Excel */}
       {isExpanded && previewData && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
-          style={{ zIndex: 1050 }}
-        >
-          <div
-            className="bg-white p-4 rounded shadow"
-            style={{ width: "90%", maxHeight: "90%", overflowY: "auto" }}
-          >
-            <button
-              className="btn btn-danger position-absolute top-0 end-0 m-3"
-              onClick={() => setIsExpanded(false)}
-            >
-              Cerrar Vista
-            </button>
+        <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center" style={{ zIndex: 1050 }}>
+          <div className="bg-white p-4 rounded shadow w-100" style={{ maxWidth: "90%", maxHeight: "90%", overflowY: "auto" }}>
+            <div className="d-flex justify-content-end">
+              <button className="btn btn-danger" onClick={() => setIsExpanded(false)}>
+                Cerrar Vista
+              </button>
+            </div>
             <h4 className="mb-3 text-center">Vista Expandida del Excel</h4>
             <div className="table-responsive">
               <table className="table table-bordered table-striped table-sm">

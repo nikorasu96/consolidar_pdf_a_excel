@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
+import InstructionsModal from "@/components/InstructionsModal";
 import { validatePDFFiles } from "../utils/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
@@ -60,6 +61,9 @@ export default function Home() {
 
   // Para limpiar el FileUpload
   const [clearFileInput, setClearFileInput] = useState(false);
+
+  // Estado para mostrar el modal de instrucciones
+  const [showInstructions, setShowInstructions] = useState(true);
 
   /**
    * Reset de todos los estados de resultado.
@@ -250,6 +254,10 @@ export default function Home() {
 
   return (
     <div className="container my-5">
+      {showInstructions && (
+        <InstructionsModal onClose={() => setShowInstructions(false)} />
+      )}
+
       <div className="row justify-content-center">
         <div className="col-12 col-md-10 col-lg-8">
           <div className="card shadow-sm">
@@ -425,7 +433,6 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
 
               {/* Vista previa del Excel */}
               {previewData && (

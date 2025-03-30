@@ -39,7 +39,9 @@
     "src",
     "workers/**/*",
     "workers/pdfWorker.js",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "types",         // si tus definiciones están aquí
+    "global.d.ts"    // o si lo dejas en la raíz
   ],
   "exclude": [
     "node_modules"

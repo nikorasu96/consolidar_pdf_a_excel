@@ -8,12 +8,26 @@ import readXlsxFile from "read-excel-file";
 import logger from "../utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
+/**
+ * Convierte segundos totales en un string "Xh Ym Zs" o "Ym Zs".
+ */
+function formatTime(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  } else {
+    return `${minutes}m ${seconds}s`;
+  }
+}
+
 export default function Home() {
-  // Estados para el manejo de archivos, carga y resultados
+  // Estados principales
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Datos para la vista previa del Excel
+  // Para vista previa del Excel
   const [previewData, setPreviewData] = useState<any[][] | null>(null);
   const [excelBlob, setExcelBlob] = useState<Blob | null>(null);
   const [fileName, setFileName] = useState<string>("consolidado.xlsx");
@@ -24,20 +38,22 @@ export default function Home() {
   const [totalExitosos, setTotalExitosos] = useState(0);
   const [totalFallidos, setTotalFallidos] = useState(0);
 
-  // Listas de archivos procesados exitosamente y fallidos
-  const [groupedExitosos, setGroupedExitosos] = useState<
-    Array<{ fileName: string; count: number }>
+  // Listas finales
+  const [exitosos, setExitosos] = useState<
+    Array<{ fileName: string; datos: Record<string, string>; titulo?: string }>
   >([]);
-  const [groupedFallidos, setGroupedFallidos] = useState<
-    Array<{ fileName: string; count: number; error: string }>
+  const [fallidos, setFallidos] = useState<
+    Array<{ fileName: string; error: string }>
   >([]);
 
-  // Mensajes extra
+  // Mensajes
   const [formatMessage, setFormatMessage] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Para medir el tiempo de procesamiento
+  // Tiempo total y progreso en tiempo real
   const [duration, setDuration] = useState<number | null>(null);
+  const [progressCount, setProgressCount] = useState(0);
+  const [estimatedSeconds, setEstimatedSeconds] = useState(0);
 
   // Formato PDF seleccionado
   const [pdfFormat, setPdfFormat] = useState<PDFFormat>("CERTIFICADO_DE_HOMOLOGACION");
@@ -46,7 +62,7 @@ export default function Home() {
   const [clearFileInput, setClearFileInput] = useState(false);
 
   /**
-   * Resetea los resultados y los estados asociados.
+   * Reset de todos los estados de resultado.
    */
   const resetResults = () => {
     setPreviewData(null);
@@ -55,32 +71,28 @@ export default function Home() {
     setTotalProcesados(0);
     setTotalExitosos(0);
     setTotalFallidos(0);
-    setGroupedExitosos([]);
-    setGroupedFallidos([]);
+    setExitosos([]);
+    setFallidos([]);
     setFormatMessage("");
     setApiError(null);
     setIsExpanded(false);
     setDuration(null);
+    setProgressCount(0);
+    setEstimatedSeconds(0);
   };
 
-  /**
-   * Maneja el cambio de archivos en el componente FileUpload.
-   */
-  const handleFileChange = (files: FileList | null) => {
-    setFiles(files);
+  const handleFileChange = (fileList: FileList | null) => {
+    setFiles(fileList);
     resetResults();
   };
 
-  /**
-   * Maneja el cambio de formato PDF seleccionado.
-   */
   const handleFormatChange = (format: PDFFormat) => {
     setPdfFormat(format);
     resetResults();
   };
 
   /**
-   * Limpia los archivos subidos, resetea todo y vuelve al formato por defecto.
+   * Limpia todo y resetea el formato a uno por defecto.
    */
   const handleLimpiar = () => {
     setClearFileInput(true);
@@ -91,19 +103,20 @@ export default function Home() {
   };
 
   /**
-   * Envía los archivos seleccionados al endpoint /api/convert y procesa la respuesta.
+   * Envía los archivos al endpoint /api/convert y procesa la respuesta SSE.
    */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!files || files.length === 0) return;
 
-    // Validación de PDFs
+    // Validación previa
     if (!validatePDFFiles(files)) {
       alert("Uno o más archivos no son válidos.");
       return;
     }
 
     setLoading(true);
+    setApiError(null);
     const startTime = Date.now();
 
     const formData = new FormData();
@@ -113,65 +126,110 @@ export default function Home() {
     formData.append("pdfFormat", pdfFormat);
 
     try {
-      const res = await fetch("/api/convert", {
+      const response = await fetch("/api/convert", {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
-
-      // Si la respuesta no es OK, se muestra un error y se detiene.
-      if (!res.ok) {
-        alert(data.error);
-        setLoading(false);
-        return;
+      if (!response.ok || !response.body) {
+        throw new Error("Error en la respuesta del servidor");
       }
 
-      // Mensaje de error de API (opcional)
-      if (data.error) {
-        setApiError(data.error);
-      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let partial = "";
 
-      // Datos de resumen
-      setTotalProcesados(data.totalProcesados);
-      setTotalExitosos(data.totalExitosos);
-      setTotalFallidos(data.totalFallidos);
-      setGroupedExitosos(data.exitosos);
-      setGroupedFallidos(data.fallidos);
-      setFormatMessage(data.message);
+      // Lectura del stream SSE
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      // Si se generó un Excel, se procesa para vista previa
-      if (data.excel) {
-        const byteCharacters = atob(data.excel);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        // Decodificamos chunk
+        partial += decoder.decode(value, { stream: true });
+        // Cada evento SSE se separa por doble salto de línea
+        const events = partial.split("\n\n");
+        partial = events.pop() || ""; // lo que sobra se queda en partial
+
+        // Procesamos cada evento SSE
+        for (const evt of events) {
+          if (!evt.trim()) continue;
+          const lines = evt.trim().split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data:")) {
+              const jsonString = line.replace(/^data:\s?/, "");
+              if (!jsonString.trim()) continue;
+              const data = JSON.parse(jsonString);
+
+              // Evento parcial de progreso
+              if (data.progress !== undefined && data.total !== undefined) {
+                setProgressCount(data.progress);
+                setEstimatedSeconds(Math.round(data.estimatedMsLeft / 1000));
+                if (data.successes !== undefined) setTotalExitosos(data.successes);
+                if (data.failures !== undefined) setTotalFallidos(data.failures);
+              }
+
+              // Evento final
+              if (data.final) {
+                if (data.final.error) {
+                  // Error global (por ejemplo, no se encontraron datos)
+                  setApiError(data.final.error);
+                }
+
+                // Resumen
+                setTotalProcesados(data.final.totalProcesados);
+                setTotalExitosos(data.final.totalExitosos);
+                setTotalFallidos(data.final.totalFallidos);
+                setFormatMessage(data.final.message || "");
+
+                // Listas de éxitos/fallas
+                if (data.final.exitosos) {
+                  // data.final.exitosos puede ser un array de { fileName, datos, ... }
+                  setExitosos(data.final.exitosos);
+                }
+                if (data.final.fallidos) {
+                  setFallidos(data.final.fallidos);
+                }
+
+                // Si hay Excel
+                if (data.final.excel) {
+                  const byteCharacters = atob(data.final.excel);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], {
+                    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                  });
+                  setExcelBlob(blob);
+                  setFileName(decodeURIComponent(data.final.fileName));
+
+                  // Cargamos la vista previa
+                  const rows = await readXlsxFile(blob);
+                  setPreviewData(rows);
+                } else {
+                  setExcelBlob(null);
+                  setPreviewData(null);
+                }
+
+                // Terminamos la lectura SSE
+                reader.cancel();
+              }
+            }
+          }
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        setExcelBlob(blob);
-        setFileName(decodeURIComponent(data.fileName));
-
-        const rows = await readXlsxFile(blob);
-        setPreviewData(rows);
-      } else {
-        setExcelBlob(null);
-        setPreviewData(null);
       }
     } catch (error) {
       logger.error("Error:", error);
       alert("Ocurrió un error");
     } finally {
       setLoading(false);
-      // Se mide el tiempo total de proceso
       const endTime = Date.now();
       setDuration((endTime - startTime) / 1000);
     }
   };
 
   /**
-   * Descarga el archivo Excel generado.
+   * Descarga el Excel generado.
    */
   const handleDownload = () => {
     if (excelBlob) {
@@ -188,25 +246,47 @@ export default function Home() {
               <h2 className="mb-0">Consolidar PDFs a Excel</h2>
             </div>
             <div className="card-body">
-              {/* Mensajes de error y de formato */}
+              {/* Mensaje de error general (por ejemplo, "No se encontraron datos...") */}
               {apiError && (
                 <div className="alert alert-warning text-center">{apiError}</div>
               )}
+
+              {/* Mensaje de formato */}
               {formatMessage && (
                 <div className="alert alert-info text-center">{formatMessage}</div>
               )}
 
-              {/* Form principal */}
               <form onSubmit={handleSubmit}>
-                <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
+                {/* FileUpload (deshabilitado si está cargando) */}
+                <div
+                  style={{
+                    pointerEvents: loading ? "none" : "auto",
+                    opacity: loading ? 0.6 : 1,
+                  }}
+                >
+                  <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
+                </div>
 
-                {/* Selección de formato */}
+                {/* Cantidad de archivos seleccionados */}
+                {files && files.length > 0 && (
+                  <div className="my-3 text-center">
+                    <span className="badge bg-info text-dark fs-5">
+                      Archivos seleccionados: {files.length}
+                    </span>
+                  </div>
+                )}
+
+                {/* Botones de formato */}
                 <div className="mb-3">
                   <label className="form-label fw-bold">Selecciona el formato de PDF:</label>
                   <div className="btn-group d-flex flex-wrap">
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
+                          ? "btn-primary"
+                          : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                       disabled={loading}
                     >
@@ -214,7 +294,9 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("CRT")}
                       disabled={loading}
                     >
@@ -222,7 +304,9 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("SOAP")}
                       disabled={loading}
                     >
@@ -230,7 +314,9 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
                     >
@@ -255,7 +341,20 @@ export default function Home() {
                 </div>
               </form>
 
-              {/* Resumen de procesamiento */}
+              {/* Progreso en tiempo real */}
+              {loading && (
+                <div className="my-3 text-center">
+                  <p>
+                    Archivos procesados: {progressCount} de {files ? files.length : 0}
+                  </p>
+                  <p>
+                    Exitosos: {totalExitosos} / Fallidos: {totalFallidos}
+                  </p>
+                  <p>Tiempo estimado restante: {formatTime(estimatedSeconds)}</p>
+                </div>
+              )}
+
+              {/* Resumen final */}
               {(totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
                   <h5 className="text-center">Resumen de Procesamiento</h5>
@@ -282,19 +381,18 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Archivos Exitosos: Fondo Verde Claro */}
-              {groupedExitosos.length > 0 && (
-                <div
-                  className="mt-4 p-3 rounded"
-                  style={{ backgroundColor: "#d4edda" }} 
-                >
+              {/* Panel de Archivos Exitosos */}
+              {exitosos.length > 0 && (
+                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
                   <h5 className="text-center">Archivos Exitosos</h5>
-                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
+                  <div
+                    className="table-responsive"
+                    style={{ maxHeight: "200px", overflowY: "auto" }}
+                  >
                     <ul className="list-group text-center">
-                      {groupedExitosos.map((item, index) => (
+                      {exitosos.map((item, index) => (
                         <li key={index} className="list-group-item">
                           {item.fileName}
-                          {item.count > 1 && ` (x${item.count})`}
                         </li>
                       ))}
                     </ul>
@@ -302,19 +400,18 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Archivos Fallidos: Fondo Rojo Claro */}
-              {groupedFallidos.length > 0 && (
-                <div
-                  className="mt-4 p-3 rounded"
-                  style={{ backgroundColor: "#f8d7da" }}
-                >
+              {/* Panel de Archivos Fallidos */}
+              {fallidos.length > 0 && (
+                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#f8d7da" }}>
                   <h5 className="text-center">Archivos Fallidos</h5>
-                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
+                  <div
+                    className="table-responsive"
+                    style={{ maxHeight: "200px", overflowY: "auto" }}
+                  >
                     <ul className="list-group text-center">
-                      {groupedFallidos.map((item, index) => (
+                      {fallidos.map((item, index) => (
                         <li key={index} className="list-group-item">
-                          {item.fileName}
-                          {item.count > 1 && ` (x${item.count})`} - {item.error}
+                          {item.fileName} - {item.error}
                         </li>
                       ))}
                     </ul>
@@ -333,15 +430,15 @@ export default function Home() {
                     <table className="table table-bordered table-striped table-sm">
                       <thead className="table-light">
                         <tr>
-                          {previewData[0]?.map((header, index) => (
-                            <th key={index}>{header}</th>
+                          {previewData[0]?.map((header: string, idx: number) => (
+                            <th key={idx}>{header}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {previewData.slice(1).map((row, rowIndex) => (
                           <tr key={rowIndex}>
-                            {row.map((cell, cellIndex) => (
+                            {row.map((cell: any, cellIndex: number) => (
                               <td key={cellIndex}>{cell}</td>
                             ))}
                           </tr>
@@ -349,7 +446,6 @@ export default function Home() {
                       </tbody>
                     </table>
                   </div>
-
                   <div className="d-flex justify-content-between align-items-center mt-3">
                     <button
                       className="btn btn-outline-secondary"
@@ -368,7 +464,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Modal de Vista Expandida del Excel */}
+      {/* Modal para Vista Expandida del Excel */}
       {isExpanded && previewData && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
@@ -389,15 +485,15 @@ export default function Home() {
               <table className="table table-bordered table-striped table-sm">
                 <thead className="table-light">
                   <tr>
-                    {previewData[0]?.map((header, index) => (
-                      <th key={index}>{header}</th>
+                    {previewData[0]?.map((header: string, idx: number) => (
+                      <th key={idx}>{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {previewData.slice(1).map((row, rowIndex) => (
                     <tr key={rowIndex}>
-                      {row.map((cell, cellIndex) => (
+                      {row.map((cell: any, cellIndex: number) => (
                         <td key={cellIndex}>{cell}</td>
                       ))}
                     </tr>

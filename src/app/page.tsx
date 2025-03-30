@@ -55,8 +55,8 @@ export default function Home() {
   const [progressCount, setProgressCount] = useState(0);
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
 
-  // Formato PDF seleccionado
-  const [pdfFormat, setPdfFormat] = useState<PDFFormat>("CERTIFICADO_DE_HOMOLOGACION");
+  // ❗ Formato PDF seleccionado: inicia en null
+  const [pdfFormat, setPdfFormat] = useState<PDFFormat | null>(null);
 
   // Para limpiar el FileUpload
   const [clearFileInput, setClearFileInput] = useState(false);
@@ -87,19 +87,22 @@ export default function Home() {
   };
 
   const handleFormatChange = (format: PDFFormat) => {
+    // Asignamos el formato
     setPdfFormat(format);
     resetResults();
   };
 
   /**
-   * Limpia todo y resetea el formato a uno por defecto.
+   * Limpia todo y NOTA: no definimos pdfFormat ("CERTIFICADO_DE_HOMOLOGACION")
+   * así arranca sin ningún botón seleccionado.
    */
   const handleLimpiar = () => {
     setClearFileInput(true);
     setTimeout(() => setClearFileInput(false), 0);
     setFiles(null);
     resetResults();
-    setPdfFormat("CERTIFICADO_DE_HOMOLOGACION");
+    //pdfFormat permanece en null
+    setPdfFormat(null);
   };
 
   /**
@@ -107,7 +110,16 @@ export default function Home() {
    */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      alert("No se han seleccionado archivos.");
+      return;
+    }
+
+    // ❗ Si no se ha seleccionado formato, no continuamos
+    if (!pdfFormat) {
+      alert("Por favor, selecciona un formato antes de convertir.");
+      return;
+    }
 
     // Validación previa
     if (!validatePDFFiles(files)) {
@@ -245,7 +257,7 @@ export default function Home() {
               <h2 className="mb-0">Consolidar PDFs a Excel</h2>
             </div>
             <div className="card-body">
-              {/* Mensaje de error general (por ejemplo, "No se encontraron datos...") */}
+              {/* Mensaje de error general */}
               {apiError && (
                 <div className="alert alert-warning text-center">{apiError}</div>
               )}
@@ -275,7 +287,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Botones de formato */}
+                {/* Botones de formato (ninguno seleccionado inicialmente) */}
                 <div className="mb-3">
                   <label className="form-label fw-bold">Selecciona el formato de PDF:</label>
                   <div className="btn-group d-flex flex-wrap">
@@ -314,7 +326,9 @@ export default function Home() {
                     <button
                       type="button"
                       className={`btn ${
-                        pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"
+                        pdfFormat === "PERMISO_CIRCULACION"
+                          ? "btn-primary"
+                          : "btn-outline-primary"
                       } flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
@@ -340,7 +354,7 @@ export default function Home() {
                 </div>
               </form>
 
-              {/* UN SOLO BLOQUE para tiempo real + resumen final */}
+              {/* Bloque de progreso en tiempo real y/o resumen final */}
               {(loading || totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
                   <h5 className="text-center">Resumen de Procesamiento</h5>
@@ -349,8 +363,8 @@ export default function Home() {
                     <div className="col">
                       <p className="mb-0 fw-bold">Procesados</p>
                       <p>
-                        {loading
-                          ? `${progressCount} de ${files ? files.length : 0}`
+                        {loading && files
+                          ? `${progressCount} de ${files.length}`
                           : totalProcesados}
                       </p>
                     </div>
@@ -364,7 +378,7 @@ export default function Home() {
                       <p className="mb-0 fw-bold text-danger">Fallidos</p>
                       <p>{totalFallidos}</p>
                     </div>
-                    {/* Tiempo restante o duración */}
+                    {/* Estimado o Duración */}
                     {loading ? (
                       <div className="col">
                         <p className="mb-0 fw-bold">Estimado</p>
@@ -384,10 +398,7 @@ export default function Home() {
               {exitosos.length > 0 && (
                 <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
                   <h5 className="text-center">Archivos Exitosos</h5>
-                  <div
-                    className="table-responsive"
-                    style={{ maxHeight: "200px", overflowY: "auto" }}
-                  >
+                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
                     <ul className="list-group text-center">
                       {exitosos.map((item, index) => (
                         <li key={index} className="list-group-item">
@@ -403,10 +414,7 @@ export default function Home() {
               {fallidos.length > 0 && (
                 <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#f8d7da" }}>
                   <h5 className="text-center">Archivos Fallidos</h5>
-                  <div
-                    className="table-responsive"
-                    style={{ maxHeight: "200px", overflowY: "auto" }}
-                  >
+                  <div className="table-responsive" style={{ maxHeight: "200px", overflowY: "auto" }}>
                     <ul className="list-group text-center">
                       {fallidos.map((item, index) => (
                         <li key={index} className="list-group-item">

@@ -3,27 +3,17 @@ import PDFParser from "pdf2json";
 import logger from "../logger";
 import type { PDFFormat } from "@/types/pdfFormat";
 
-// Importa los extractores y sus validaciones (ajusta las rutas según tu proyecto)
-import {
-  extraerDatosHomologacion,
-  bestEffortValidationHomologacion,
-} from "@/extractors/homologacionExtractor";
-import {
-  extraerDatosCRT,
-  bestEffortValidationCRT,
-} from "@/extractors/crtExtractor";
-import {
-  extraerDatosSoapSimplificado,
-  bestEffortValidationSoap,
-} from "@/extractors/soapExtractor";
-import {
-  extraerDatosPermisoCirculacion,
-  bestEffortValidationPermisoCirculacion,
-} from "@/extractors/permisoCirculacionExtractor";
+// Importa los extractores y validadores (ajusta las rutas según tu proyecto)
+import { extraerDatosHomologacion, bestEffortValidationHomologacion } from "@/extractors/homologacionExtractor";
+import { extraerDatosCRT, bestEffortValidationCRT } from "@/extractors/crtExtractor";
+import { extraerDatosSoapSimplificado, bestEffortValidationSoap } from "@/extractors/soapExtractor";
+import { extraerDatosPermisoCirculacion, bestEffortValidationPermisoCirculacion } from "@/extractors/permisoCirculacionExtractor";
 
 /**
  * Busca en el texto la primera coincidencia del patrón RegExp y retorna el grupo 1 (si existe).
- * Si no se encuentra, retorna null.
+ * @param text Texto en el cual buscar.
+ * @param pattern Patrón a buscar.
+ * @returns Cadena encontrada o null.
  */
 export function buscar(text: string, pattern: RegExp): string | null {
   const match = text.match(pattern);
@@ -76,16 +66,25 @@ export function sanitizarNombre(str: string): string {
 }
 
 /**
- * Función principal que combina:
- *  1. Parseo del PDF (parsePDFBuffer)
- *  2. Detección del formato (usando palabras clave)
- *  3. Extracción de datos según el formato
- *  4. Validación de los datos extraídos (best-effort)
- *
+ * Detecta el formato del PDF según palabras clave en el texto extraído.
+ * @param texto Texto extraído del PDF.
+ * @returns El formato detectado (uno de los PDFFormat) o "DESCONOCIDO" si no se identifica.
+ */
+function detectarFormato(texto: string): PDFFormat | "DESCONOCIDO" {
+  const upperText = texto.toUpperCase();
+  if (upperText.includes("CERTIFICADO DE HOMOLOGACIÓN")) return "CERTIFICADO_DE_HOMOLOGACION";
+  if (upperText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") || upperText.includes("FECHA REVISIÓN")) return "CRT";
+  if (upperText.includes("SEGURO OBLIGATORIO") || upperText.includes("SOAP")) return "SOAP";
+  if (upperText.includes("PERMISO DE CIRCULACIÓN") || upperText.includes("PLACA ÚNICA")) return "PERMISO_CIRCULACION";
+  return "DESCONOCIDO";
+}
+
+/**
+ * Función principal que combina el parseo, detección de formato, extracción y validación de datos.
  * @param file Archivo PDF.
- * @param pdfFormat Formato de PDF esperado (por ejemplo, "CRT", "SOAP", etc.). Si se proporciona y no coincide con el detectado, se lanza un error.
- * @param returnRegex Indica si se debe retornar la información de regex (utilizado en algunos formatos).
- * @returns Un objeto con la propiedad 'datos' (los datos extraídos), 'titulo' (si se detecta) y 'regexes' (si corresponde).
+ * @param pdfFormat Formato de PDF esperado (opcional).
+ * @param returnRegex Indica si se debe retornar la información de regex (por ejemplo, en permiso de circulación).
+ * @returns Objeto con las propiedades: datos (los datos extraídos), título (si se extrajo alguno) y regexes (si corresponde).
  */
 export async function procesarPDF(
   file: File,
@@ -95,15 +94,19 @@ export async function procesarPDF(
   // 1. Parsear el PDF para obtener el texto
   const allText = await parsePDFBuffer(file);
 
-  // 2. Detectar el formato real del PDF según el texto
+  // 2. Detectar el formato real del PDF
   const formatoDetectado = detectarFormato(allText);
+
+  // Si se especifica un formato esperado y no coincide, lanzar error con mensaje ajustado
   if (pdfFormat && formatoDetectado !== pdfFormat) {
     throw new Error(
-      `El archivo ${file.name} no corresponde al formato esperado (${pdfFormat}). Se detectó que pertenece a: ${formatoDetectado}.`
+      `El archivo ${file.name} no corresponde al formato esperado (${pdfFormat}). Se detectó que pertenece a: ${
+        formatoDetectado === "DESCONOCIDO" ? "Formato Desconocido" : formatoDetectado
+      }.`
     );
   }
 
-  // 3. Extraer datos según el formato detectado
+  // 3. Extraer datos y aplicar validaciones según el formato detectado
   let datos: Record<string, string> = {};
   let titulo: string | undefined;
   let regexes: Record<string, RegExp> | undefined;
@@ -112,44 +115,25 @@ export async function procesarPDF(
     case "CERTIFICADO_DE_HOMOLOGACION":
       datos = extraerDatosHomologacion(allText);
       bestEffortValidationHomologacion(datos, file.name);
-      // Extraemos un título, si se encuentra, por ejemplo:
       titulo = allText.match(/CERTIFICADO DE HOMOLOGACIÓN\s+(.*?)\s+REEMPLAZA/i)?.[1]?.trim();
       break;
-
     case "CRT":
       datos = extraerDatosCRT(allText);
       bestEffortValidationCRT(datos, file.name);
       break;
-
     case "SOAP":
       datos = extraerDatosSoapSimplificado(allText);
       bestEffortValidationSoap(datos, file.name);
       break;
-
     case "PERMISO_CIRCULACION":
       const result = extraerDatosPermisoCirculacion(allText);
       datos = result.data;
       regexes = returnRegex ? result.regexes : undefined;
       bestEffortValidationPermisoCirculacion(datos, file.name);
       break;
-
     default:
       throw new Error(`El archivo ${file.name} no pudo ser identificado como un formato válido.`);
   }
 
   return { datos, titulo, regexes: regexes || null };
-}
-
-/**
- * Detecta el formato del PDF según palabras clave en el texto extraído.
- * @param texto Texto extraído del PDF.
- * @returns El formato detectado, o "DESCONOCIDO" si no se identifica.
- */
-function detectarFormato(texto: string): PDFFormat | "DESCONOCIDO" {
-  const upperText = texto.toUpperCase();
-  if (upperText.includes("CERTIFICADO DE HOMOLOGACIÓN")) return "CERTIFICADO_DE_HOMOLOGACION";
-  if (upperText.includes("CERTIFICADO DE REVISIÓN TÉCNICA") || upperText.includes("FECHA REVISIÓN")) return "CRT";
-  if (upperText.includes("SEGURO OBLIGATORIO") || upperText.includes("SOAP")) return "SOAP";
-  if (upperText.includes("PERMISO DE CIRCULACIÓN") || upperText.includes("PLACA ÚNICA")) return "PERMISO_CIRCULACION";
-  return "DESCONOCIDO";
 }

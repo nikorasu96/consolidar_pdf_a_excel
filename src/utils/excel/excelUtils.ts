@@ -3,7 +3,7 @@ import XlsxPopulate from "xlsx-populate";
 import { setColumnWidths } from "./columnUtils";
 import { adjustRowHeights } from "./rowUtils";
 import { sanitizarNombre } from "@/utils/pdf/pdfUtils";
-import logger from "@/utils/logger";  // <-- Asegúrate de importar el logger
+import logger from "@/utils/logger";
 
 export interface ExcelStats {
   totalProcesados: number;
@@ -13,11 +13,20 @@ export interface ExcelStats {
 }
 
 /**
+ * Función auxiliar para eliminar etiquetas HTML de un string.
+ * @param htmlString Cadena que puede contener HTML.
+ * @returns Cadena limpia sin etiquetas HTML.
+ */
+function stripHtmlTags(htmlString: string): string {
+  return htmlString.replace(/<[^>]*>/g, "");
+}
+
+/**
  * Genera un archivo Excel con dos hojas:
  *  - "Datos": Contiene los registros exitosos.
  *  - "Estadisticas": Muestra el resumen de procesamiento (totales y lista de archivos fallidos).
  *
- * @param registros Datos para la hoja "Datos".
+ * @param registros Datos a incluir en la hoja "Datos".
  * @param fileName Nombre base del archivo.
  * @param pdfFormat (Opcional) Formato de PDF.
  * @param stats (Opcional) Estadísticas: totalProcesados, totalExitosos, totalFallidos y fallidos.
@@ -38,10 +47,12 @@ export async function generateExcel(
   if (registros.length === 0) {
     dataSheet.cell(1, 1).value("No se encontraron datos para generar el Excel.");
   } else {
+    // Los encabezados se obtienen de las claves del primer registro.
     const headers = Object.keys(registros[0]);
     headers.forEach((header, colIndex) => {
       dataSheet.cell(1, colIndex + 1).value(header);
     });
+    // Insertar cada registro
     registros.forEach((registro, rowIndex) => {
       headers.forEach((header, colIndex) => {
         dataSheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");
@@ -51,9 +62,8 @@ export async function generateExcel(
     adjustRowHeights(dataSheet, registros);
   }
 
-  // Hoja "Estadisticas": se crea solo si stats es definido y tiene datos
+  // Hoja "Estadisticas": se crea si se proporcionan estadísticas
   if (stats) {
-    // Agregamos la hoja de estadísticas
     const statsSheet = (workbook as any).addSheet("Estadisticas");
     statsSheet.name("Estadisticas");
 
@@ -62,7 +72,6 @@ export async function generateExcel(
       .cell(1, 1)
       .value("Estadísticas de Conversión")
       .style({ bold: true, fill: "ffffff" });
-    
     // Totales
     statsSheet.cell(3, 1).value("Total Procesados:");
     statsSheet.cell(3, 2).value(stats.totalProcesados).style({ fill: "ffffff" });
@@ -78,11 +87,13 @@ export async function generateExcel(
       .style({ bold: true, fill: "ffffff" });
     statsSheet.cell(8, 1).value("Nombre Archivo");
     statsSheet.cell(8, 2).value("Error");
-    
+
     let row = 9;
     stats.fallidos.forEach((fallo) => {
+      // Se elimina el HTML del error antes de escribirlo
+      const cleanError = stripHtmlTags(fallo.error);
       statsSheet.cell(row, 1).value(fallo.fileName);
-      statsSheet.cell(row, 2).value(fallo.error);
+      statsSheet.cell(row, 2).value(cleanError);
       row++;
     });
   } else {

@@ -1,4 +1,4 @@
-// src/components/InstructionsModal.tsx
+// components/InstructionsModal.tsx
 "use client";
 
 interface InstructionsModalProps {
@@ -29,14 +29,36 @@ export default function InstructionsModal({ onClose }: InstructionsModalProps) {
               Bienvenido a la aplicación de conversión de PDFs a Excel. Para comenzar:
             </p>
             <ul>
-              <li>Selecciona uno o más archivos PDF.</li>
-              <li>Elige el formato correspondiente al contenido del PDF.</li>
-              <li>Haz clic en "Convertir" para iniciar el proceso.</li>
-              <li>Revisa el progreso y, al finalizar, descarga el archivo Excel generado.</li>
+              <li>
+                Selecciona uno o más archivos PDF arrastrándolos o haciendo clic en
+                el área designada.
+              </li>
+              <li>
+                Elige el formato de PDF correspondiente mediante los botones:
+                <br />
+                - <strong>Certificado de Homologación</strong>
+                <br />
+                - <strong>Certificado de Revisión Técnica (CRT)</strong>
+                <br />
+                - <strong>Seguro Obligatorio (SOAP)</strong>
+                <br />
+                - <strong>Permiso de Circulación</strong>
+              </li>
+              <li>
+                Ten en cuenta que mientras más archivos se procesen, el tiempo de
+                conversión será mayor.
+              </li>
+              <li>
+                Al finalizar, se mostrará un resumen del procesamiento en tiempo real.
+              </li>
+              <li>
+                Al descargar el archivo Excel, éste se nombrará según la opción que
+                elegiste (por ejemplo, "Certificado de Homologación.xlsx").
+              </li>
             </ul>
             <p>
               Asegúrate de que los archivos sean PDFs válidos y correspondan al formato
-              seleccionado.
+              seleccionado. ¡Buena suerte!
             </p>
           </div>
           <div className="modal-footer">

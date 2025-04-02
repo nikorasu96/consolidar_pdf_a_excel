@@ -204,7 +204,7 @@ export default function Home() {
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} />
+                <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
                 </div>
 
                 {files && files.length > 0 && (

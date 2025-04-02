@@ -1,8 +1,7 @@
 // utils/excelUtils.ts
-
-import XlsxPopulate, { Sheet } from "xlsx-populate";
+import XlsxPopulate from "xlsx-populate";
 import type { PDFFormat } from "../../types/pdfFormat";
-import { parseDate, parseIntOrNull } from "@/utils/parseUtils"; // Funciones centralizadas de parseo
+import { parseDate, parseIntOrNull } from "@/utils/parseUtils";
 
 const COLUMN_WIDTH_FACTOR = 1.2;
 const MIN_COLUMN_WIDTH = 10;
@@ -10,7 +9,7 @@ const BASE_ROW_HEIGHT = 15;
 const WRAP_TEXT_FACTOR = 1.0;
 
 function setColumnWidths(
-  sheet: Sheet,
+  sheet: any,
   encabezados: string[],
   registros: Record<string, string>[]
 ): void {
@@ -28,7 +27,7 @@ function setColumnWidths(
 }
 
 function adjustRowHeightsForWrapText(
-  sheet: Sheet,
+  sheet: any,
   registros: Record<string, string>[],
   estadoColIndex: number
 ): void {
@@ -67,106 +66,132 @@ function transformData(
 }
 
 /**
- * Genera un archivo Excel a partir de un arreglo de registros.
+ * Genera un archivo Excel con dos hojas:
+ * - "Datos": con la información consolidada de los PDFs exitosos.
+ * - "Estadisticas": con el resumen de procesamiento.
+ *
+ * @param registros Datos a incluir en la hoja "Datos".
+ * @param fileName Nombre base del archivo.
+ * @param pdfFormat (Opcional) Formato de PDF, para mapear columnas.
+ * @param stats (Opcional) Estadísticas: totalProcesados, totalExitosos, totalFallidos y fallidos.
  */
 export async function generateExcel(
   registros: Record<string, string>[],
   fileName: string,
-  pdfFormat?: PDFFormat
+  pdfFormat?: PDFFormat,
+  stats?: { totalProcesados: number; totalExitosos: number; totalFallidos: number; fallidos: Array<{ fileName: string; error: string }> }
 ): Promise<{ buffer: Buffer; encodedName: string }> {
-  if (registros.length === 0) {
-    let errorMsg = "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
-    if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
-      errorMsg = "No se encontraron datos para generar el Excel. Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
-    } else if (pdfFormat === "CRT") {
-      errorMsg = "No se encontraron datos para generar el Excel. Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
-    }
-    throw new Error(errorMsg);
-  }
-
-  let headerMapping: Record<string, string> = {};
-  switch (pdfFormat) {
-    case "CERTIFICADO_DE_HOMOLOGACION":
-      headerMapping = {
-        "Fecha de Emisión": "FechaDeEmision",
-        "Nº Correlativo": "NumeroCorrelativo",
-        "Código Informe Técnico": "CodigoInformeTecnico",
-        "Patente": "Patente",
-        "Válido Hasta": "ValidoHasta",
-        "Tipo de Vehículo": "TipoDeVehiculo",
-        "Marca": "Marca",
-        "Año": "Ano",
-        "Modelo": "Modelo",
-        "Color": "Color",
-        "VIN": "VIN",
-        "Nº Motor": "NumeroMotor",
-        "Firmado por": "FirmadoPor",
-      };
-      break;
-    case "CRT":
-      headerMapping = {
-        "Fecha de Revisión": "FechaRevision",
-        "Planta": "Planta",
-        "Placa Patente": "PlacaPatente",
-        "Válido Hasta": "ValidoHasta",
-      };
-      break;
-    case "SOAP":
-      headerMapping = {
-        "INSCRIPCION R.V.M": "InscripcionRVM",
-        "Bajo el codigo": "BajoElCodigo",
-        "RUT": "RUT",
-        "RIGE DESDE": "RigeDesde",
-        "HASTA": "Hasta",
-        "POLIZA N°": "PolizaN",
-        "PRIMA": "Prima",
-      };
-      break;
-    case "PERMISO_CIRCULACION":
-      headerMapping = {
-        "Placa Única": "PlacaUnica",
-        "Codigo SII": "CodigoSII",
-        "Valor Permiso": "ValorPermiso",
-        "Pago total": "PagoTotal",
-        "Pago cuota 1": "PagoCuota1",
-        "Pago cuota 2": "PagoCuota2",
-        "Total a pagar": "TotalAPagar",
-        "Fecha de emisión": "FechaEmision",
-        "Fecha Vencimiento": "FechaVencimiento",
-        "Forma de Pago": "FormaDePago",
-      };
-      break;
-    default:
-      headerMapping = {};
-  }
-
-  // Agregamos el campo "Nombre PDF" al inicio del mapeo
-  headerMapping = { "Nombre PDF": "Nombre PDF", ...headerMapping };
-
-  const { transformedHeaders, transformedRecords } = transformData(registros, headerMapping);
   const workbook = await XlsxPopulate.fromBlankAsync();
-  const sheet = workbook.sheet(0);
 
-  // Escribimos los encabezados
-  transformedHeaders.forEach((header, colIndex) => {
-    sheet.cell(1, colIndex + 1).value(header);
-  });
+  // Hoja "Datos"
+  const dataSheet = workbook.sheet(0) as any;
+  dataSheet.name("Datos");
 
-  // Congelamos la primera fila y la primera columna para que siempre queden a la vista
-  // Hacemos cast a 'any' para evitar error de tipos:
-  (sheet as any).freezePanes("B2");
+  if (registros.length === 0) {
+    dataSheet.cell(1, 1).value("No se encontraron datos para generar el Excel.");
+  } else {
+    let headerMapping: Record<string, string> = {};
+    switch (pdfFormat) {
+      case "CERTIFICADO_DE_HOMOLOGACION":
+        headerMapping = {
+          "Fecha de Emisión": "FechaDeEmision",
+          "Nº Correlativo": "NumeroCorrelativo",
+          "Código Informe Técnico": "CodigoInformeTecnico",
+          "Patente": "Patente",
+          "Válido Hasta": "ValidoHasta",
+          "Tipo de Vehículo": "TipoDeVehiculo",
+          "Marca": "Marca",
+          "Año": "Ano",
+          "Modelo": "Modelo",
+          "Color": "Color",
+          "VIN": "VIN",
+          "Nº Motor": "NumeroMotor",
+          "Firmado por": "FirmadoPor",
+        };
+        break;
+      case "CRT":
+        headerMapping = {
+          "Fecha de Revisión": "FechaRevision",
+          "Planta": "Planta",
+          "Placa Patente": "PlacaPatente",
+          "Válido Hasta": "ValidoHasta",
+        };
+        break;
+      case "SOAP":
+        headerMapping = {
+          "INSCRIPCION R.V.M": "InscripcionRVM",
+          "Bajo el codigo": "BajoElCodigo",
+          "RUT": "RUT",
+          "RIGE DESDE": "RigeDesde",
+          "HASTA": "Hasta",
+          "POLIZA N°": "PolizaN",
+          "PRIMA": "Prima",
+        };
+        break;
+      case "PERMISO_CIRCULACION":
+        headerMapping = {
+          "Placa Única": "PlacaUnica",
+          "Codigo SII": "CodigoSII",
+          "Valor Permiso": "ValorPermiso",
+          "Pago total": "PagoTotal",
+          "Pago cuota 1": "PagoCuota1",
+          "Pago cuota 2": "PagoCuota2",
+          "Total a pagar": "TotalAPagar",
+          "Fecha de emisión": "FechaEmision",
+          "Fecha Vencimiento": "FechaVencimiento",
+          "Forma de Pago": "FormaDePago",
+        };
+        break;
+      default:
+        headerMapping = {};
+    }
 
-  // Escribimos el resto de los datos
-  transformedRecords.forEach((registro, rowIndex) => {
+    // Agregar "Nombre PDF" al inicio
+    headerMapping = { "Nombre PDF": "Nombre PDF", ...headerMapping };
+
+    const { transformedHeaders, transformedRecords } = transformData(registros, headerMapping);
+
     transformedHeaders.forEach((header, colIndex) => {
-      sheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");
+      dataSheet.cell(1, colIndex + 1).value(header);
     });
-  });
 
-  setColumnWidths(sheet, transformedHeaders, transformedRecords);
-  const estadoIndex = transformedHeaders.findIndex((header) => header === "Estado");
-  if (estadoIndex !== -1) {
-    adjustRowHeightsForWrapText(sheet, transformedRecords, estadoIndex + 1);
+    (dataSheet as any).freezePanes("B2");
+
+    transformedRecords.forEach((registro, rowIndex) => {
+      transformedHeaders.forEach((header, colIndex) => {
+        dataSheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");
+      });
+    });
+
+    setColumnWidths(dataSheet, transformedHeaders, transformedRecords);
+    const estadoIndex = transformedHeaders.findIndex((header) => header === "Estado");
+    if (estadoIndex !== -1) {
+      adjustRowHeightsForWrapText(dataSheet, transformedRecords, estadoIndex + 1);
+    }
+  }
+
+  // Hoja "Estadisticas"
+  if (stats) {
+    const statsSheet = (workbook as any).addSheet("Estadisticas");
+    statsSheet.cell(1, 1).value("Estadísticas de Conversión");
+    statsSheet.cell(1, 1).style("bold", true);
+    statsSheet.cell(3, 1).value("Total Procesados:");
+    statsSheet.cell(3, 2).value(stats.totalProcesados);
+    statsSheet.cell(4, 1).value("Total Exitosos:");
+    statsSheet.cell(4, 2).value(stats.totalExitosos);
+    statsSheet.cell(5, 1).value("Total Fallidos:");
+    statsSheet.cell(5, 2).value(stats.totalFallidos);
+    statsSheet.cell(7, 1).value("Archivos Fallidos");
+    statsSheet.cell(7, 1).style("bold", true);
+    statsSheet.cell(8, 1).value("Nombre Archivo");
+    statsSheet.cell(8, 2).value("Error");
+
+    let row = 9;
+    stats.fallidos.forEach((fallo) => {
+      statsSheet.cell(row, 1).value(fallo.fileName);
+      statsSheet.cell(row, 2).value(fallo.error);
+      row++;
+    });
   }
 
   const encodedName = encodeURIComponent(

@@ -1,3 +1,4 @@
+// components/FileUpload.tsx
 "use client";
 
 import React, { useState, useRef, useEffect, DragEvent } from "react";
@@ -6,9 +7,10 @@ import { isValidPDF } from "../utils/fileUtils";
 interface FileUploadProps {
   onFilesChange: (files: FileList | null) => void;
   clearTrigger: boolean;
+  disabled?: boolean; // Nueva prop
 }
 
-export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadProps) {
+export default function FileUpload({ onFilesChange, clearTrigger, disabled = false }: FileUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -45,11 +47,13 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if(disabled) return;
     handleFiles(e.target.files);
   };
 
   // Manejo de eventos Drag & Drop
   const handleDrag = (e: DragEvent<HTMLDivElement>) => {
+    if(disabled) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -60,6 +64,7 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    if(disabled) return;
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -70,6 +75,7 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
   };
 
   const triggerFileSelect = () => {
+    if (disabled) return;
     if (inputRef.current) {
       inputRef.current.click();
     }
@@ -78,8 +84,8 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
   return (
     <div>
       <div
-        className={`border rounded p-4 text-center ${dragActive ? "bg-light" : ""}`}
-        style={{ borderStyle: "dashed", cursor: "pointer" }}
+        className={`border rounded p-4 text-center ${dragActive ? "bg-light" : ""} ${disabled ? "opacity-50" : ""}`}
+        style={{ borderStyle: "dashed", cursor: disabled ? "not-allowed" : "pointer" }}
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
@@ -88,8 +94,6 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
       >
         <p className="fw-bold mb-1">Arrastra y suelta tus archivos PDF aquí</p>
         <p className="text-muted small mb-3">(o haz clic para seleccionarlos manualmente)</p>
-
-        {/* Botón (opcional) para destacar la acción de subir archivos */}
         <button
           type="button"
           className="btn btn-primary"
@@ -109,16 +113,15 @@ export default function FileUpload({ onFilesChange, clearTrigger }: FileUploadPr
         multiple
         className="d-none"
         onChange={handleChange}
+        disabled={disabled}  // Deshabilita el input si corresponde
       />
 
-      {/* Mensaje de error */}
       {error && (
         <div className="alert alert-danger mt-2" role="alert">
           {error}
         </div>
       )}
 
-      {/* Lista de archivos centrada */}
       {selectedFiles.length > 0 && (
         <div
           className="mt-2 d-flex justify-content-center"

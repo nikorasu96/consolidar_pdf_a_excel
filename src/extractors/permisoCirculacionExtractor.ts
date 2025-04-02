@@ -1,4 +1,3 @@
-// src/extractors/permisoCirculacionExtractor.ts
 import { buscar } from "@/utils/pdfUtils";
 import logger from "@/utils/logger";
 

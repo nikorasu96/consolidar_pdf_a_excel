@@ -1,4 +1,3 @@
-// src/extractors/soapExtractor.ts
 import { buscar } from "@/utils/pdfUtils";
 import logger from "@/utils/logger";
 

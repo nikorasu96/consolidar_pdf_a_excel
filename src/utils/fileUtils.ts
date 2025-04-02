@@ -1,5 +1,3 @@
-// src/utils/fileUtils.ts
-
 import logger from "./logger";
 
 /**

@@ -1,4 +1,3 @@
-// src/extractors/homologacionExtractor.ts
 import { buscar } from "@/utils/pdfUtils";
 import logger from "@/utils/logger";
 
@@ -54,8 +53,6 @@ export function bestEffortValidationHomologacion(datos: Record<string, string>, 
   }
 
   if (warnings.length > 0) {
-    logger.warn(
-      `BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`
-    );
+    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`);
   }
 }

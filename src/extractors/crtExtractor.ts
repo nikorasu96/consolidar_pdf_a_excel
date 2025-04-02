@@ -1,4 +1,3 @@
-// src/extractors/crtExtractor.ts
 import logger from "@/utils/logger";
 
 export function extraerDatosCRT(text: string): Record<string, string> {
@@ -46,8 +45,6 @@ export function bestEffortValidationCRT(datos: Record<string, string>, fileName:
   }
 
   if (warnings.length > 0) {
-    logger.warn(
-      `BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`
-    );
+    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`);
   }
 }

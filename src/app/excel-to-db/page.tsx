@@ -177,7 +177,7 @@ export default function ExcelToDBPage() {
 
       {/* ======================================================== */}
       {/* INICIO: Overlay de "Sitio en Construcción" */}
-      {/* <div
+      <div
         className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
         style={{ backgroundColor: "rgba(0,0,0,0.8)", zIndex: 9999 }}
       >
@@ -191,7 +191,7 @@ export default function ExcelToDBPage() {
             <button className="btn btn-primary">Volver a Inicio</button>
           </Link>
         </div>
-      </div> */}
+      </div>
       {/* FIN: Overlay de "Sitio en Construcción" */}
       {/* ======================================================== */}
     </div>

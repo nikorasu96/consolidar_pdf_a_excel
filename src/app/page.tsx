@@ -365,46 +365,68 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="text-center mt-4">
+      {/* <div className="text-center mt-4">
         <Link href="/excel-to-db">
           <button className="btn btn-info">
             Ingresar Datos de Excel a la BD
           </button>
         </Link>
-      </div>
+      </div> */}
 
       {isExpanded && previewData && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center" style={{ zIndex: 1050 }}>
-          <div className="bg-white p-4 rounded shadow w-100" style={{ maxWidth: "90%", maxHeight: "90%", overflowY: "auto" }}>
-            <div className="d-flex justify-content-end">
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
+          style={{ zIndex: 1050 }}
+        >
+          <div
+            className="bg-white rounded shadow w-100"
+            style={{ maxWidth: "90%", maxHeight: "90%", overflow: "auto", position: "relative" }}
+          >
+            {/* Encabezado sticky para el botón de cerrar */}
+            <div className="sticky-top bg-white p-2 d-flex justify-content-end" style={{ zIndex: 3 }}>
               <button className="btn btn-danger" onClick={() => setIsExpanded(false)}>
                 Cerrar Vista
               </button>
             </div>
-            <h4 className="mb-3 text-center">Vista Expandida del Excel</h4>
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped table-sm">
-                <thead className="table-light">
-                  <tr>
-                    {previewData[0]?.map((header: string, idx: number) => (
-                      <th key={idx}>{header}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewData.slice(1).map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {row.map((cell: any, cellIndex: number) => (
-                        <td key={cellIndex}>{cell}</td>
+
+            <div className="p-4">
+              <h4 className="mb-3 text-center">Vista Expandida del Excel</h4>
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped table-sm">
+                  <thead className="table-light">
+                    <tr>
+                      {previewData[0]?.map((header: string, idx: number) => (
+                        <th
+                          key={idx}
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            background: "#fff",
+                            zIndex: 2,
+                          }}
+                        >
+                          {header}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {previewData.slice(1).map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                        {row.map((cell: any, cellIndex: number) => (
+                          <td key={cellIndex}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

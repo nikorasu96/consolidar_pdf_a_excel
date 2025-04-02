@@ -144,13 +144,11 @@ export async function POST(request: Request) {
               const fileTime = fileEnd - fileStart;
               totalTimeSoFar += fileTime;
 
-              // Cálculo de tiempo restante (estimado)
               const avgTimePerFile = totalTimeSoFar / processedCount;
               const remaining = totalFiles - processedCount;
               const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
 
               let errorMsg = error.message || "Error desconocido";
-              // Si el mensaje contiene "Se detectó que pertenece a:", lo reemplazamos por una versión con fondo amarillo y negrita.
               if (errorMsg.includes("Se detectó que pertenece a:")) {
                 errorMsg = errorMsg.replace(
                   /Se detectó que pertenece a:\s*(.*)/,
@@ -158,7 +156,6 @@ export async function POST(request: Request) {
                 );
               }
 
-              // Evento SSE de error para este archivo
               sendEvent({
                 progress: processedCount,
                 total: totalFiles,
@@ -195,7 +192,6 @@ export async function POST(request: Request) {
           })
           .filter(Boolean) as ConversionFailure[];
 
-        // Si no hubo ningún éxito
         if (exitosos.length === 0) {
           let errorMsg =
             "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
@@ -214,7 +210,6 @@ export async function POST(request: Request) {
               break;
           }
 
-          // Enviamos evento final con el detalle de fallidos
           sendEvent({
             final: {
               error: errorMsg,
@@ -232,7 +227,7 @@ export async function POST(request: Request) {
           return;
         }
 
-        // Sí hubo éxitos => generamos el Excel
+        // Si hubo éxitos => generamos el Excel
         let tituloExtraido: string | undefined;
         if (exitosos.length === 1 && exitosos[0]?.titulo) {
           tituloExtraido = exitosos[0].titulo;
@@ -243,10 +238,11 @@ export async function POST(request: Request) {
             ? sanitizarNombre(tituloExtraido)
             : "CONSOLIDADO_CERTIFICADOS";
 
-        const registros = exitosos.map((r) => r.datos);
+        // Aquí se integra el nombre del PDF a cada registro
+        const registros = exitosos.map((r) => ({ "Nombre PDF": r.fileName, ...r.datos }));
+
         const { buffer: excelBuffer, encodedName } = await generateExcel(registros, nombreArchivo, pdfFormat);
 
-        // Evento final con el Excel y los fallidos
         sendEvent({
           final: {
             totalProcesados: totalFiles,
@@ -264,7 +260,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Retornamos el SSE
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",

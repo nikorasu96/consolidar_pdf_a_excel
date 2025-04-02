@@ -2,7 +2,7 @@
 
 import XlsxPopulate, { Sheet } from "xlsx-populate";
 import type { PDFFormat } from "../../types/pdfFormat";
-import { parseDate, parseIntOrNull } from "@/utils/parseUtils"; // Importamos funciones centralizadas
+import { parseDate, parseIntOrNull } from "@/utils/parseUtils"; // Funciones centralizadas de parseo
 
 const COLUMN_WIDTH_FACTOR = 1.2;
 const MIN_COLUMN_WIDTH = 10;
@@ -45,10 +45,6 @@ function adjustRowHeightsForWrapText(
   }
 }
 
-/**
- * Transforma los registros y encabezados usando un mapping.
- * headerMapping define: claveOriginal → claveFinal (para la BD)
- */
 function transformData(
   registros: Record<string, string>[],
   headerMapping: Record<string, string>
@@ -144,14 +140,23 @@ export async function generateExcel(
       headerMapping = {};
   }
 
+  // Agregamos el campo "Nombre PDF" al inicio del mapeo
+  headerMapping = { "Nombre PDF": "Nombre PDF", ...headerMapping };
+
   const { transformedHeaders, transformedRecords } = transformData(registros, headerMapping);
   const workbook = await XlsxPopulate.fromBlankAsync();
   const sheet = workbook.sheet(0);
 
+  // Escribimos los encabezados
   transformedHeaders.forEach((header, colIndex) => {
     sheet.cell(1, colIndex + 1).value(header);
   });
 
+  // Congelamos la primera fila y la primera columna para que siempre queden a la vista
+  // Hacemos cast a 'any' para evitar error de tipos:
+  (sheet as any).freezePanes("B2");
+
+  // Escribimos el resto de los datos
   transformedRecords.forEach((registro, rowIndex) => {
     transformedHeaders.forEach((header, colIndex) => {
       sheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");

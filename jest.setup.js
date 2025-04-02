@@ -2,8 +2,11 @@
 const path = require("path");
 const dotenv = require("dotenv");
 
-// (Opcional) Cargar variables de entorno si usas .env.local
+// Cargar variables de entorno si usas .env.local
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
+
+// Extiende expect con los matchers de Testing Library
+require("@testing-library/jest-dom/extend-expect");
 
 // Mock global de pdf2json
 jest.mock("pdf2json", () => {

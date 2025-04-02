@@ -1,6 +1,13 @@
+// src/components/ExcelFileUpload.tsx
 "use client";
 
-import React, { useState, useRef, useEffect, DragEvent } from "react";
+import React, { ChangeEvent, DragEvent, useRef, useState, useEffect } from "react";
+import useFileUpload from "@/hooks/useFileUpload";
+
+// Función de validación para archivos Excel (.xlsx)
+const validateExcelFiles = (files: FileList): boolean => {
+  return Array.from(files).every((file) => file.name.toLowerCase().endsWith(".xlsx"));
+};
 
 interface ExcelFileUploadProps {
   onFilesChange: (files: FileList | null) => void;
@@ -8,45 +15,26 @@ interface ExcelFileUploadProps {
 }
 
 export default function ExcelFileUpload({ onFilesChange, clearTrigger }: ExcelFileUploadProps) {
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [dragActive, setDragActive] = useState(false);
+  const { files, error, handleFileChange, clearFiles } = useFileUpload(validateExcelFiles);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  useEffect(() => {
+    onFilesChange(files);
+  }, [files, onFilesChange]);
 
   useEffect(() => {
     if (clearTrigger && inputRef.current) {
       inputRef.current.value = "";
-      setSelectedFiles([]);
-      setError(null);
-      onFilesChange(null);
+      clearFiles();
     }
-  }, [clearTrigger, onFilesChange]);
+  }, [clearTrigger, clearFiles]);
 
-  const handleFiles = (files: FileList | null) => {
-    if (files) {
-      const fileArray = Array.from(files);
-      for (let i = 0; i < fileArray.length; i++) {
-        if (!fileArray[i].name.toLowerCase().endsWith(".xlsx")) {
-          setError(`El archivo ${fileArray[i].name} no es un archivo Excel válido (.xlsx).`);
-          if (inputRef.current) inputRef.current.value = "";
-          setSelectedFiles([]);
-          onFilesChange(null);
-          return;
-        }
-      }
-      setError(null);
-      setSelectedFiles(fileArray);
-      onFilesChange(files);
-    } else {
-      setSelectedFiles([]);
-      onFilesChange(null);
-    }
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    handleFileChange(e.target.files);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
-  };
-
+  // Handlers para Drag & Drop
   const handleDrag = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -62,15 +50,13 @@ export default function ExcelFileUpload({ onFilesChange, clearTrigger }: ExcelFi
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
+      handleFileChange(e.dataTransfer.files);
       e.dataTransfer.clearData();
     }
   };
 
   const triggerFileSelect = () => {
-    if (inputRef.current) {
-      inputRef.current.click();
-    }
+    inputRef.current?.click();
   };
 
   return (
@@ -107,10 +93,10 @@ export default function ExcelFileUpload({ onFilesChange, clearTrigger }: ExcelFi
         </div>
       )}
 
-      {selectedFiles.length > 0 && (
+      {files && (
         <div className="mt-2 d-flex justify-content-center" style={{ maxHeight: "150px", overflowY: "auto" }}>
           <ul className="list-group text-center" style={{ width: "fit-content" }}>
-            {selectedFiles.map((file, index) => (
+            {Array.from(files).map((file, index) => (
               <li key={index} className="list-group-item">
                 {file.name}
               </li>

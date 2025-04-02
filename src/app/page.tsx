@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
 import InstructionsModal from "../components/InstructionsModal";
-import { validatePDFFiles } from "../utils/fileUtils";
+import { validatePDFFiles } from "../utils/pdf/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
 import logger from "../utils/logger";
-import type { PDFFormat } from "@/../../types/pdfFormat";
+import type { PDFFormat } from "@/types/pdfFormat";
 
 function formatTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -204,7 +204,7 @@ export default function Home() {
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
+                  <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
                 </div>
 
                 {files && files.length > 0 && (
@@ -297,7 +297,10 @@ export default function Home() {
               )}
 
               {exitosos.length > 0 && (
-                <div className="mt-4 p-3 bg-light rounded">
+                <div
+                  className="mt-4 p-3 rounded"
+                  style={{ backgroundColor: "#d4edda" }}
+                >
                   <h5 className="text-center mb-2">Archivos Exitosos</h5>
                   <div className="overflow-auto" style={{ maxHeight: "300px" }}>
                     <ul className="list-group">
@@ -309,22 +312,27 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
+
               )}
 
               {fallidos.length > 0 && (
-                <div className="mt-4 p-3 bg-light rounded">
+                <div
+                  className="mt-4 p-3 rounded"
+                  style={{ backgroundColor: "#f8d7da" }}
+                >
                   <h5 className="text-center mb-2">Archivos Fallidos</h5>
                   <div className="overflow-auto" style={{ maxHeight: "300px" }}>
                     <ul className="list-group">
                       {fallidos.map((item, index) => (
                         <li key={index} className="list-group-item text-center">
-                          {item.fileName} -{" "}
-                          <span className="bg-warning fw-bold" dangerouslySetInnerHTML={{ __html: item.error }} />
+                          <span dangerouslySetInnerHTML={{ __html: item.fileName }} /> -{" "}
+                          <span dangerouslySetInnerHTML={{ __html: item.error }} />
                         </li>
                       ))}
                     </ul>
                   </div>
                 </div>
+
               )}
 
               {previewData && (

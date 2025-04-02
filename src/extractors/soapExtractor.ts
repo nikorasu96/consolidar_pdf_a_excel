@@ -1,4 +1,4 @@
-import { buscar } from "@/utils/pdfUtils";
+import { buscar } from "@/utils/pdf/pdfUtils";
 import logger from "@/utils/logger";
 
 /**

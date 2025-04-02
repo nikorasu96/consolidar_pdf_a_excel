@@ -19,7 +19,7 @@ return {
 });
 
 import PDFParser from "pdf2json";
-import * as pdfUtils from "@/utils/pdfUtils";
+import * as pdfUtils from "@/utils/pdf/pdfUtils";
 
 /**
 * Función auxiliar para crear un archivo dummy.

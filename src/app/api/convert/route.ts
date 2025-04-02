@@ -1,55 +1,10 @@
 // app/api/convert/route.ts
 import { NextResponse } from "next/server";
-import pLimit from "p-limit";
-import { procesarPDF, sanitizarNombre } from "@/utils/pdfUtils";
-import { generateExcel } from "@/utils/excelUtils";
-import { isValidPDF, isPDFContentValid } from "@/utils/fileUtils";
 import logger from "@/utils/logger";
-import type { PDFFormat } from "../../../../types/pdfFormat";
+import type { PDFFormat } from "../../../types/pdfFormat";
+import { processPDFFiles, generateExcelFromResults } from "@/services/pdfService";
 
 export const runtime = "nodejs";
-const limit = pLimit(5);
-
-type ConversionSuccess = {
-  fileName: string;
-  datos: Record<string, string>;
-  titulo?: string;
-  regexes?: Record<string, RegExp> | null;
-};
-
-type ConversionFailure = {
-  fileName: string;
-  error: string;
-};
-
-function getFormatMessage(pdfFormat: PDFFormat): string {
-  switch (pdfFormat) {
-    case "CERTIFICADO_DE_HOMOLOGACION":
-      return "Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
-    case "CRT":
-      return "Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
-    case "SOAP":
-      return "Este botón es para PDF SOAP (Seguro Obligatorio). Por favor, coloque solo el PDF correspondiente a este formato.";
-    case "PERMISO_CIRCULACION":
-      return "Este botón es para Permisos de Circulación. Por favor, sube solo archivos PDF correspondientes a este tipo de documento.";
-    default:
-      return "";
-  }
-}
-
-async function processPDFDirect(
-  file: File,
-  pdfFormat: PDFFormat,
-  returnRegex: boolean
-): Promise<ConversionSuccess> {
-  const result = await procesarPDF(file, pdfFormat, returnRegex);
-  return {
-    fileName: file.name,
-    datos: result.datos,
-    titulo: result.titulo,
-    regexes: result.regexes || null,
-  };
-}
 
 export async function POST(request: Request) {
   try {
@@ -58,199 +13,87 @@ export async function POST(request: Request) {
     const pdfFormat = formData.get("pdfFormat") as PDFFormat;
 
     if (!files || files.length === 0) {
-      return NextResponse.json({ error: "No se proporcionó ningún archivo PDF" }, { status: 400 });
-    }
-
-    for (const file of files) {
-      if (!isValidPDF(file)) {
-        return NextResponse.json(
-          { error: `El archivo ${file.name} no es válido o excede el tamaño permitido.` },
-          { status: 400 }
-        );
-      }
-      if (!(await isPDFContentValid(file))) {
-        return NextResponse.json(
-          { error: `El contenido del archivo ${file.name} no es válido.` },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        { error: "No se proporcionó ningún archivo PDF" },
+        { status: 400 }
+      );
     }
 
     const returnRegex = pdfFormat === "PERMISO_CIRCULACION";
-    const totalFiles = files.length;
-
-    let processedCount = 0;
-    let successesCount = 0;
-    let failuresCount = 0;
-    let totalTimeSoFar = 0;
-
     const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
         const sendEvent = (data: any) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
-        const promises = files.map((file) =>
-          limit(async () => {
-            const fileStart = Date.now();
-            try {
-              const result = await processPDFDirect(file, pdfFormat, returnRegex);
-              processedCount++;
-              successesCount++;
-              const fileEnd = Date.now();
-              const fileTime = fileEnd - fileStart;
-              totalTimeSoFar += fileTime;
-              const avgTimePerFile = totalTimeSoFar / processedCount;
-              const remaining = totalFiles - processedCount;
-              const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
-              sendEvent({
-                progress: processedCount,
-                total: totalFiles,
-                file: file.name,
-                status: "fulfilled",
-                estimatedMsLeft,
-                successes: successesCount,
-                failures: failuresCount,
-              });
-              return { status: "fulfilled", value: result } as PromiseFulfilledResult<ConversionSuccess>;
-            } catch (error: any) {
-              processedCount++;
-              failuresCount++;
-              const fileEnd = Date.now();
-              const fileTime = fileEnd - fileStart;
-              totalTimeSoFar += fileTime;
-              const avgTimePerFile = totalTimeSoFar / processedCount;
-              const remaining = totalFiles - processedCount;
-              const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
-              let errorMsg = error.message || "Error desconocido";
-              if (errorMsg.includes("Se detectó que pertenece a:")) {
-                errorMsg = errorMsg.replace(
-                  /Se detectó que pertenece a:\s*(.*)/,
-                  '<span style="background-color: yellow; font-weight: bold;">Se detectó que pertenece a: $1</span>'
-                );
-              }
-              sendEvent({
-                progress: processedCount,
-                total: totalFiles,
-                file: file.name,
-                status: "rejected",
-                error: errorMsg,
-                estimatedMsLeft,
-                successes: successesCount,
-                failures: failuresCount,
-              });
-              return { status: "rejected", reason: error } as PromiseRejectedResult;
-            }
-          })
-        );
+        // Procesa los PDFs
+        const results = await processPDFFiles({
+          files,
+          pdfFormat,
+          returnRegex,
+          onEvent: sendEvent,
+        });
 
-        const conversionResults = await Promise.all(promises);
+        // Separamos los resultados en éxitos y fallos
+        const successes = results.filter(r => r.status === "fulfilled") as { status: "fulfilled"; value: any }[];
+        const failures = results.filter(r => r.status === "rejected") as { status: "rejected"; reason: string }[];
 
-        const exitosos = conversionResults
-          .filter((r) => r.status === "fulfilled")
-          .map((r) => (r as PromiseFulfilledResult<ConversionSuccess>).value);
-        const fallidos = conversionResults
-          .map((r, index) => {
-            if (r.status === "rejected") {
-              return {
-                fileName: files[index].name,
-                error: (r as PromiseRejectedResult).reason.message,
-              } as ConversionFailure;
-            }
-            return null;
-          })
-          .filter(Boolean) as ConversionFailure[];
-
-        if (exitosos.length === 0) {
-          let errorMsg = "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
-          switch (pdfFormat) {
-            case "CERTIFICADO_DE_HOMOLOGACION":
-              errorMsg = "No se encontraron datos para generar el Excel. Este botón es para PDF de homologación. Por favor, coloque solo el PDF correspondiente a este formato.";
-              break;
-            case "CRT":
-              errorMsg = "No se encontraron datos para generar el Excel. Este botón es para Certificado de Revisión Técnica (CRT). Por favor, coloque solo el PDF correspondiente a este formato.";
-              break;
-            case "SOAP":
-              errorMsg = "No se encontraron datos para generar el Excel. Este botón es para PDF SOAP. Por favor, coloque solo el PDF correspondiente a este formato.";
-              break;
-            case "PERMISO_CIRCULACION":
-              errorMsg = "No se encontraron datos para generar el Excel. Este botón es para Permisos de Circulación. Por favor, coloque solo el PDF correspondiente a este formato.";
-              break;
-          }
+        // Si no hay éxitos, retorna error y se cierra el stream
+        if (successes.length === 0) {
+          const errorMsg = "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
           sendEvent({
             final: {
               error: errorMsg,
-              totalProcesados: totalFiles,
+              totalProcesados: files.length,
               totalExitosos: 0,
-              totalFallidos: failuresCount,
+              totalFallidos: failures.length,
               exitosos: [],
-              fallidos,
+              fallidos: failures.map((f, index) => ({
+                fileName: files[index].name,
+                error: f.reason,
+              })),
               excel: null,
               fileName: null,
-              message: getFormatMessage(pdfFormat),
             },
           });
           controller.close();
           return;
         }
 
-        let tituloExtraido: string | undefined;
-        if (exitosos.length === 1 && exitosos[0]?.titulo) {
-          tituloExtraido = exitosos[0].titulo;
-        }
+        // Construir objeto de estadísticas a partir de los resultados
+        const stats = {
+          totalProcesados: files.length,
+          totalExitosos: successes.length,
+          totalFallidos: failures.length,
+          fallidos: failures.map((f, index) => ({
+            fileName: files[index].name,
+            error: f.reason,
+          })),
+        };
 
-        // Asigna el nombre literal del botón, según el formato seleccionado
-        let baseFileName = "";
-        switch (pdfFormat) {
-          case "CERTIFICADO_DE_HOMOLOGACION":
-            baseFileName = "Certificado de Homologación";
-            break;
-          case "CRT":
-            baseFileName = "Certificado de Revisión Técnica (CRT)";
-            break;
-          case "SOAP":
-            baseFileName = "Seguro Obligatorio (SOAP)";
-            break;
-          case "PERMISO_CIRCULACION":
-            baseFileName = "Permiso de Circulación";
-            break;
-          default:
-            baseFileName = "Consolidado";
-        }
-
-        const nombreArchivo =
-          (exitosos.length === 1 && tituloExtraido)
-            ? sanitizarNombre(tituloExtraido)
-            : baseFileName;
-
-        const registros = exitosos.map((r) => ({ "Nombre PDF": r.fileName, ...r.datos }));
-
-        const { buffer: excelBuffer, encodedName } = await generateExcel(
-          registros,
-          nombreArchivo,
+        // Generar el Excel pasando el objeto stats para que se genere la hoja "Estadisticas"
+        const { excelBuffer, fileName } = await generateExcelFromResults(
+          successes.map(s => s.value),
           pdfFormat,
-          {
-            totalProcesados: totalFiles,
-            totalExitosos: successesCount,
-            totalFallidos: failuresCount,
-            fallidos,
-          }
+          stats
         );
 
         sendEvent({
           final: {
-            totalProcesados: totalFiles,
-            totalExitosos: successesCount,
-            totalFallidos: failuresCount,
-            exitosos,
-            fallidos,
+            totalProcesados: files.length,
+            totalExitosos: successes.length,
+            totalFallidos: failures.length,
+            exitosos: successes.map(s => s.value),
+            fallidos: failures.map((f, index) => ({
+              fileName: files[index].name,
+              error: f.reason,
+            })),
             excel: excelBuffer.toString("base64"),
-            fileName: encodedName,
-            message: getFormatMessage(pdfFormat),
+            fileName,
           },
         });
-
         controller.close();
       },
     });

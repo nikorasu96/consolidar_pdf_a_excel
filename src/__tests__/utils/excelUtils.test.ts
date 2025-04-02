@@ -1,6 +1,6 @@
 // __tests__/excelUtils.test.ts
-import { generateExcel } from "@/utils/excelUtils";
-import type { PDFFormat } from "@/../../types/pdfFormat";
+import { generateExcel } from "@/utils/excel/excelUtils";
+import type { PDFFormat } from "@/types/pdfFormat";
 
 describe("excelUtils - generateExcel", () => {
   test("debe generar un buffer y un nombre de archivo codificado", async () => {

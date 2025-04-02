@@ -5,7 +5,7 @@ import { useState } from "react";
 import ExcelFileUpload from "@/components/ExcelFileUpload";
 import readXlsxFile from "read-excel-file";
 import logger from "@/utils/logger";
-import type { PDFFormat } from "@/../../types/pdfFormat";
+import type { PDFFormat } from "@/types/pdfFormat";
 
 export default function ExcelToDBPage() {
   const [files, setFiles] = useState<FileList | null>(null);

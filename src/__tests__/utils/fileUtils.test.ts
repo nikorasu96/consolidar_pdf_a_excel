@@ -1,5 +1,5 @@
 // __tests__/fileUtils.test.ts
-import { isValidPDF, validatePDFFiles, MAX_SIZE } from "@/utils/fileUtils";
+import { isValidPDF, validatePDFFiles, MAX_SIZE } from "@/utils/pdf/fileUtils";
 
 // Función auxiliar para crear un objeto File simulado.
 const createDummyPDF = (name: string, size: number, mimeType = "application/pdf"): File => {

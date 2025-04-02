@@ -1,18 +1,9 @@
+// src/utils/db.ts
 import sql from "mssql";
-
-const config: sql.config = {
-  server: process.env.DB_SERVER || "192.168.0.90", // O tu nombre de host si está disponible
-  database: process.env.DB_DATABASE || "PDFExcelDB",
-  user: process.env.DB_USER || "ConvPDF",
-  password: process.env.DB_PASSWORD || "ConvPDFy",
-  options: {
-    trustServerCertificate: true,
-    // Si usas TLS, puedes configurar 'encrypt: true' según corresponda.
-  },
-};
+import { DB_CONFIG } from "@/config/config";
 
 export async function getConnection(): Promise<sql.ConnectionPool> {
-  return sql.connect(config);
+  return sql.connect(DB_CONFIG);
 }
 
 export default sql;

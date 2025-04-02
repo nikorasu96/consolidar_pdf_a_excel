@@ -1,59 +1,46 @@
-// components/FileUpload.tsx
+// src/components/FileUpload.tsx
 "use client";
 
-import React, { useState, useRef, useEffect, DragEvent } from "react";
-import { isValidPDF } from "../utils/fileUtils";
+import React, { useRef, useEffect, useCallback, ChangeEvent, DragEvent, useState } from "react";
+import useFileUpload from "@/hooks/useFileUpload";
 
 interface FileUploadProps {
   onFilesChange: (files: FileList | null) => void;
   clearTrigger: boolean;
-  disabled?: boolean; // Nueva prop
+  disabled?: boolean;
 }
 
 export default function FileUpload({ onFilesChange, clearTrigger, disabled = false }: FileUploadProps) {
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [dragActive, setDragActive] = useState(false);
+  // Puedes pasarle una función de validación si la necesitas; aquí dejamos sin validación personalizada
+  const { files, error, handleFileChange, clearFiles } = useFileUpload();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const prevFilesRef = useRef<FileList | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
+  // Callback para manejar el cambio del input
+  const onChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    handleFileChange(e.target.files);
+  }, [handleFileChange]);
+
+  // Notifica al padre solo cuando 'files' realmente cambie
+  useEffect(() => {
+    if (files !== prevFilesRef.current) {
+      onFilesChange(files);
+      prevFilesRef.current = files;
+    }
+  }, [files, onFilesChange]);
+
+  // Limpia el input cuando clearTrigger es true
   useEffect(() => {
     if (clearTrigger && inputRef.current) {
       inputRef.current.value = "";
-      setSelectedFiles([]);
-      setError(null);
-      onFilesChange(null);
+      clearFiles();
     }
-  }, [clearTrigger, onFilesChange]);
+  }, [clearTrigger, clearFiles]);
 
-  const handleFiles = (files: FileList | null) => {
-    if (files) {
-      const fileArray = Array.from(files);
-      for (let i = 0; i < fileArray.length; i++) {
-        if (!isValidPDF(fileArray[i])) {
-          setError(`El archivo ${fileArray[i].name} no es un PDF válido o excede el tamaño permitido.`);
-          if (inputRef.current) inputRef.current.value = "";
-          setSelectedFiles([]);
-          onFilesChange(null);
-          return;
-        }
-      }
-      setError(null);
-      setSelectedFiles(fileArray);
-      onFilesChange(files);
-    } else {
-      setSelectedFiles([]);
-      onFilesChange(null);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if(disabled) return;
-    handleFiles(e.target.files);
-  };
-
-  // Manejo de eventos Drag & Drop
+  // Handlers para Drag & Drop
   const handleDrag = (e: DragEvent<HTMLDivElement>) => {
-    if(disabled) return;
+    if (disabled) return;
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -64,21 +51,19 @@ export default function FileUpload({ onFilesChange, clearTrigger, disabled = fal
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    if(disabled) return;
+    if (disabled) return;
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
+      handleFileChange(e.dataTransfer.files);
       e.dataTransfer.clearData();
     }
   };
 
   const triggerFileSelect = () => {
     if (disabled) return;
-    if (inputRef.current) {
-      inputRef.current.click();
-    }
+    inputRef.current?.click();
   };
 
   return (
@@ -112,8 +97,8 @@ export default function FileUpload({ onFilesChange, clearTrigger, disabled = fal
         accept="application/pdf"
         multiple
         className="d-none"
-        onChange={handleChange}
-        disabled={disabled}  // Deshabilita el input si corresponde
+        onChange={onChange}
+        disabled={disabled}
       />
 
       {error && (
@@ -122,13 +107,10 @@ export default function FileUpload({ onFilesChange, clearTrigger, disabled = fal
         </div>
       )}
 
-      {selectedFiles.length > 0 && (
-        <div
-          className="mt-2 d-flex justify-content-center"
-          style={{ maxHeight: "150px", overflowY: "auto" }}
-        >
+      {files && (
+        <div className="mt-2 d-flex justify-content-center" style={{ maxHeight: "150px", overflowY: "auto" }}>
           <ul className="list-group text-center" style={{ width: "fit-content" }}>
-            {selectedFiles.map((file, index) => (
+            {Array.from(files).map((file, index) => (
               <li key={index} className="list-group-item">
                 {file.name}
               </li>

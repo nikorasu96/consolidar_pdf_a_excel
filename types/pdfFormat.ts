@@ -1,2 +1,2 @@
 // types/pdfFormat.ts
-export type PDFFormat = "CRT" | "SOAP" | "CERTIFICADO_DE_HOMOLOGACION" | "PERMISO_CIRCULACION";
+export type PDFFormat = 'CERTIFICADO_DE_HOMOLOGACION' | 'CRT' | 'SOAP' | 'PERMISO_CIRCULACION';

@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import Head from "next/head";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./globals.css";

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
 import InstructionsModal from "../components/InstructionsModal";
@@ -9,65 +10,36 @@ import readXlsxFile from "read-excel-file";
 import logger from "../utils/logger";
 import type { PDFFormat } from "@/../../types/pdfFormat";
 
-/**
- * Convierte segundos totales en un string "Xh Ym Zs" o "Ym Zs".
- */
 function formatTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
-  } else {
-    return `${minutes}m ${seconds}s`;
-  }
+  return hours > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${minutes}m ${seconds}s`;
 }
 
 export default function Home() {
-  // Estados principales
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Para vista previa del Excel
   const [previewData, setPreviewData] = useState<any[][] | null>(null);
   const [excelBlob, setExcelBlob] = useState<Blob | null>(null);
   const [fileName, setFileName] = useState<string>("consolidado.xlsx");
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Resumen de resultados
   const [totalProcesados, setTotalProcesados] = useState(0);
   const [totalExitosos, setTotalExitosos] = useState(0);
   const [totalFallidos, setTotalFallidos] = useState(0);
-
-  // Listas finales
   const [exitosos, setExitosos] = useState<
     Array<{ fileName: string; datos: Record<string, string>; titulo?: string }>
   >([]);
-  const [fallidos, setFallidos] = useState<
-    Array<{ fileName: string; error: string }>
-  >([]);
-
-  // Mensajes
+  const [fallidos, setFallidos] = useState<Array<{ fileName: string; error: string }>>([]);
   const [formatMessage, setFormatMessage] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
-
-  // Tiempo total y progreso en tiempo real
   const [duration, setDuration] = useState<number | null>(null);
   const [progressCount, setProgressCount] = useState(0);
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
-
-  // Formato PDF seleccionado: inicia en null
   const [pdfFormat, setPdfFormat] = useState<PDFFormat | null>(null);
-
-  // Para limpiar el FileUpload
   const [clearFileInput, setClearFileInput] = useState(false);
-
-  // Estado para mostrar el modal de instrucciones
   const [showInstructions, setShowInstructions] = useState(true);
 
-  /**
-   * Reset de todos los estados de resultado.
-   */
   const resetResults = () => {
     setPreviewData(null);
     setExcelBlob(null);
@@ -109,17 +81,14 @@ export default function Home() {
       alert("No se han seleccionado archivos.");
       return;
     }
-
     if (!pdfFormat) {
       alert("Por favor, selecciona un formato antes de convertir.");
       return;
     }
-
     if (!validatePDFFiles(files)) {
       alert("Uno o más archivos no son válidos.");
       return;
     }
-
     setLoading(true);
     setApiError(null);
     const startTime = Date.now();
@@ -213,12 +182,6 @@ export default function Home() {
     }
   };
 
-  const handleDownload = () => {
-    if (excelBlob) {
-      saveAs(excelBlob, fileName);
-    }
-  };
-
   return (
     <div className="container my-5">
       {showInstructions && (
@@ -300,7 +263,6 @@ export default function Home() {
                 </div>
               </form>
 
-              {/* Resumen de procesamiento */}
               {(loading || totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
                   <h5 className="text-center mb-3">Resumen de Procesamiento</h5>
@@ -334,7 +296,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Panel de Archivos Exitosos */}
               {exitosos.length > 0 && (
                 <div className="mt-4 p-3 bg-light rounded">
                   <h5 className="text-center mb-2">Archivos Exitosos</h5>
@@ -350,7 +311,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Panel de Archivos Fallidos */}
               {fallidos.length > 0 && (
                 <div className="mt-4 p-3 bg-light rounded">
                   <h5 className="text-center mb-2">Archivos Fallidos</h5>
@@ -367,7 +327,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Vista previa del Excel */}
               {previewData && (
                 <div className="mt-4">
                   <h5 className="mb-3 text-center">Vista Previa del Excel</h5>
@@ -395,7 +354,7 @@ export default function Home() {
                     <button className="btn btn-outline-secondary" onClick={() => setIsExpanded(true)}>
                       Expandir Vista
                     </button>
-                    <button className="btn btn-success" onClick={handleDownload}>
+                    <button className="btn btn-success" onClick={() => { if (excelBlob) saveAs(excelBlob, fileName); }}>
                       Descargar Excel
                     </button>
                   </div>
@@ -406,7 +365,14 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Modal para Vista Expandida del Excel */}
+      <div className="text-center mt-4">
+        <Link href="/excel-to-db">
+          <button className="btn btn-info">
+            Ingresar Datos de Excel a la BD
+          </button>
+        </Link>
+      </div>
+
       {isExpanded && previewData && (
         <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center" style={{ zIndex: 1050 }}>
           <div className="bg-white p-4 rounded shadow w-100" style={{ maxWidth: "90%", maxHeight: "90%", overflowY: "auto" }}>

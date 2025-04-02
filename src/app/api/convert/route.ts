@@ -4,7 +4,7 @@ import { procesarPDF, sanitizarNombre } from "@/utils/pdfUtils";
 import { generateExcel } from "@/utils/excelUtils";
 import { isValidPDF, isPDFContentValid } from "@/utils/fileUtils";
 import logger from "@/utils/logger";
-import type { PDFFormat } from "@/../../types/pdfFormat";
+import type { PDFFormat } from "../../../../types/pdfFormat";
 
 export const runtime = "nodejs";
 const limit = pLimit(5);

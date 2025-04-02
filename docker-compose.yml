@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  app:
+    build:
+      context: .
+      target: production
+    ports:
+      - "80:3000"   # El contenedor expone la app en el puerto 3000, que se mapea al 80 del host.
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Configura la conexión a SQL Server usando el nombre del servicio 'sqlserver'
+      - DB_SERVER=sqlserver
+      - DB_DATABASE=PDFExcelDB
+      # Estas variables se usarán si empleas SQL Authentication
+      - DB_USER=sa
+      - DB_PASSWORD=YourStrong!Passw0rd
+      # Si usas autenticación NTLM, ajusta también DB_DOMAIN, etc.
+    depends_on:
+      - sqlserver
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "YourStrong!Passw0rd"
+      MSSQL_PID: "Express"
+      # Nota: para crear la base de datos PDFExcelDB, deberás ejecutar un script adicional 
+      # o conectarte y crearla manualmente, ya que el contenedor de SQL Server no crea automáticamente una base de datos aparte.
+    ports:
+      - "1433:1433"

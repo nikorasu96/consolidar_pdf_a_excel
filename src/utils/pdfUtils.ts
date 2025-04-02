@@ -1,7 +1,7 @@
 // src/utils/pdfUtils.ts
 import PDFParser from "pdf2json";
 import logger from "./logger";
-import type { PDFFormat } from "@/../../types/pdfFormat";
+import type { PDFFormat } from "../../types/pdfFormat";
 import { extraerDatosHomologacion, bestEffortValidationHomologacion } from "@/extractors/homologacionExtractor";
 import { extraerDatosCRT, bestEffortValidationCRT } from "@/extractors/crtExtractor";
 import { extraerDatosSoapSimplificado, bestEffortValidationSoap } from "@/extractors/soapExtractor";

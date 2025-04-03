@@ -368,6 +368,19 @@ export default function Home() {
           </div>
         </div>
       </div>
+            {/* ======================================================== */}
+      {/* INICIO: Overlay de "Sitio en Construcción" */}
+{/* 
+      <div className="text-center mt-4">
+        <Link href="/excel-to-db">
+          <button className="btn btn-info">
+            Ingresar Datos de Excel a la BD
+          </button>
+        </Link>
+      </div> */}
+
+            {/* FIN: Overlay de "Sitio en Construcción" */}
+      {/* ======================================================== */}
 
       {isExpanded && previewData && (
         <div

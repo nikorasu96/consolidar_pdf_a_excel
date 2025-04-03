@@ -34,17 +34,17 @@ export function bestEffortValidationCRT(datos: Record<string, string>, fileName:
     "Planta": /^.+$/,
   };
 
-  const warnings: string[] = [];
+  const errors: string[] = [];
   for (const [field, pattern] of Object.entries(expectedPatterns)) {
     const value = datos[field];
     if (!value) {
-      warnings.push(`Falta el campo "${field}".`);
+      errors.push(`Falta el campo "${field}".`);
     } else if (!pattern.test(value)) {
-      warnings.push(`Campo "${field}" con valor "${value}" no coincide con el formato esperado.`);
+      errors.push(`Campo "${field}" con valor "${value}" no coincide con el formato esperado.`);
     }
   }
 
-  if (warnings.length > 0) {
-    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`);
+  if (errors.length > 0) {
+    throw new Error(`El archivo ${fileName} presenta problemas en los datos:\n - ${errors.join("\n - ")}`);
   }
 }

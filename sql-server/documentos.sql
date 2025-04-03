@@ -1,14 +1,5 @@
-
--- ================================================
--- Script para crear las tablas para cada tipo de PDF
--- ================================================
-
-
 USE PDFExcelDB;
-
 GO
-
-
 
 -- 1. Tabla para Certificado de Homologación
 IF OBJECT_ID('dbo.CertificadoHomologacion', 'U') IS NOT NULL

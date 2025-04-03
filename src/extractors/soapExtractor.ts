@@ -11,32 +11,30 @@ export function extraerDatosSoapSimplificado(text: string): Record<string, strin
   const t = text.replace(/\r?\n|\r/g, " ");
 
   // INSCRIPCION R.V.M:
-  // Ejemplo: "INSCRIPCION R.V.M.: LXWJ75-4"
-  const inscripcionRegex = /INSCRIPC[ÍI]ON\s*R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*(?::|\-)?\s*([A-Z0-9]+(?:\s*-\s*[A-Z0-9]+)*)/i;
+  // Ejemplo esperado: "TWGV11 - 7" (se permite espacio alrededor del guion)
+  const inscripcionRegex = /INSCRIPC[ÍI]ON\s*R\s*\.?\s*V\s*\.?\s*M\s*\.?\s*(?::|\-)?\s*([A-Z0-9]+\s*-\s*[A-Z0-9]+)/i;
   const inscripcion = (buscar(t, inscripcionRegex) || "").trim();
 
   // Bajo el código
-  const bajoCodigo = buscar(t, /Bajo\s+el\s+c[óo]digo\s*[:\-]?\s*([A-Z0-9\-]+)/i) || "";
+  const bajoCodigo = (buscar(t, /Bajo\s+el\s+c[óo]digo\s*[:\-]?\s*([A-Z0-9\-]+)/i) || "").trim();
 
   // RUT:
-  // Permite capturar tanto números con puntos (ej.: "97.006.000") como sin ellos,
-  // seguidos de guion y dígito o k/K. Luego se eliminan los puntos para dejar un formato
-  // uniforme, por ejemplo: "97006000-6"
+  // Captura números con o sin puntos, seguidos de guion y dígito o k/K.
   const rutRegex = /RUT\s*[:\-]?\s*((?:\d{1,3}(?:\.\d{3})+)|\d{7,8})\s*[-]\s*([0-9kK])/i;
   const rutMatch = t.match(rutRegex);
   const rut = rutMatch ? `${rutMatch[1].replace(/[.\s]/g, "")}-${rutMatch[2]}` : "";
 
   // Fecha de inicio del seguro
-  const rigeDesde = buscar(t, /RIGE\s+DESDE\s*[:\-]?\s*(\d{2}[-/]\d{2}[-/]\d{4})/i) || "";
+  const rigeDesde = (buscar(t, /RIGE\s+DESDE\s*[:\-]?\s*(\d{2}[-/]\d{2}[-/]\d{4})/i) || "").trim();
 
   // Fecha de finalización del seguro
-  const hasta = buscar(t, /HAST(?:\s*A)?\s*[:\-]?\s*(\d{2}[-/]\d{2}[-/]\d{4})/i) || "";
+  const hasta = (buscar(t, /HAST(?:\s*A)?\s*[:\-]?\s*(\d{2}[-/]\d{2}[-/]\d{4})/i) || "").trim();
 
   // Número de póliza
-  const poliza = buscar(t, /POLI[ZS]A\s*N[°º]?\s*[:\-]?\s*([A-Z0-9\-]+)/i) || "";
+  const poliza = (buscar(t, /POLI[ZS]A\s*N[°º]?\s*[:\-]?\s*([A-Z0-9\-]+)/i) || "").trim();
 
   // Prima del seguro
-  const prima = buscar(t, /PRIMA\s*[:\-]?\s*([\d\.]+)/i) || "";
+  const prima = (buscar(t, /PRIMA\s*[:\-]?\s*([\d\.]+)/i) || "").trim();
 
   const data: Record<string, string> = {
     "INSCRIPCION R.V.M": inscripcion,
@@ -53,14 +51,18 @@ export function extraerDatosSoapSimplificado(text: string): Record<string, strin
 }
 
 /**
- * Validación "best-effort" para SOAP: Comprueba que los campos extraídos cumplan con patrones básicos.
+ * Validación "best-effort" para SOAP: Se exige que cada campo obligatorio tenga al menos 3 caracteres (tras trim)
+ * y que cumpla con el patrón esperado.
+ * En particular, para "INSCRIPCION R.V.M" se requiere que tenga al menos 6 caracteres antes del guion (con o sin espacios)
+ * y un dígito verificador después.
+ * Si algún campo falla, se lanza un error.
  */
 export function bestEffortValidationSoap(datos: Record<string, string>, fileName: string): void {
-  // Se definen los patrones esperados para cada campo
   const expectedPatterns: Record<string, RegExp> = {
-    "INSCRIPCION R.V.M": /^[A-Z0-9]+(?:[-][A-Z0-9]+)*$/,
+    // Se exige que la inscripción R.V.M tenga al menos 6 caracteres alfanuméricos antes del guion,
+    // espacios opcionales y luego un guion seguido de un único carácter.
+    "INSCRIPCION R.V.M": /^[A-Z0-9]{6,}\s*-\s*[A-Z0-9]$/i,
     "Bajo el codigo": /^[A-Z0-9\-]+$/,
-    // RUT: acepta tanto 7 u 8 dígitos sin puntos como el formato con puntos (ej.: 97.006.000-6)
     "RUT": /^(?:\d{7,8}|(?:\d{1,3}(?:\.\d{3})+))-[0-9kK]$/,
     "RIGE DESDE": /^\d{2}[-/]\d{2}[-/]\d{4}$/,
     "HASTA": /^\d{2}[-/]\d{2}[-/]\d{4}$/,
@@ -68,17 +70,17 @@ export function bestEffortValidationSoap(datos: Record<string, string>, fileName
     "PRIMA": /^[\d\.]+$/,
   };
 
-  const warnings: string[] = [];
+  const errors: string[] = [];
   for (const [field, pattern] of Object.entries(expectedPatterns)) {
     const value = datos[field];
-    if (!value) {
-      warnings.push(`Falta el campo "${field}".`);
+    if (!value || value.trim().length < 3) {
+      errors.push(`El campo "${field}" está incompleto (menos de 3 caracteres).`);
     } else if (!pattern.test(value)) {
-      warnings.push(`Campo "${field}" con valor "${value}" no coincide con el formato esperado.`);
+      errors.push(`El campo "${field}" con valor "${value}" no coincide con el formato esperado.`);
     }
   }
 
-  if (warnings.length > 0) {
-    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas en los datos:\n - ${warnings.join("\n - ")}`);
+  if (errors.length > 0) {
+    throw new Error(`El archivo ${fileName} presenta problemas en los datos:\n - ${errors.join("\n - ")}`);
   }
 }

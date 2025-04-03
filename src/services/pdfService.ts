@@ -1,7 +1,7 @@
 // src/services/pdfService.ts
 import pLimit from "p-limit";
 import { procesarPDF } from "@/utils/pdf/pdfUtils";
-import { generateExcel, ExcelStats } from "@/utils/excel/excelUtils";
+import { generateExcel, ExcelStats } from "@/utils/excel/excelUtils"; // <-- Usamos la función generateExcel
 import logger from "@/utils/logger";
 import type { PDFFormat } from "@/types/pdfFormat";
 
@@ -58,6 +58,7 @@ export async function processPDFFiles({
         const avgTimePerFile = totalTimeSoFar / processedCount;
         const remaining = totalFiles - processedCount;
         const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
+
         onEvent({
           progress: processedCount,
           total: totalFiles,
@@ -67,11 +68,12 @@ export async function processPDFFiles({
           successes: successesCount,
           failures: failuresCount,
         });
+
         return {
           status: "fulfilled",
           value: {
             fileName: file.name,
-            ...result,
+            ...result, // { datos, titulo, regexes }
           },
         } as SettledSuccess<ConversionSuccess>;
       } catch (error: any) {
@@ -83,6 +85,7 @@ export async function processPDFFiles({
         const avgTimePerFile = totalTimeSoFar / processedCount;
         const remaining = totalFiles - processedCount;
         const estimatedMsLeft = Math.round(avgTimePerFile * remaining);
+
         let errorMsg = error.message || "Error desconocido";
         if (errorMsg.includes("Se detectó que pertenece a:")) {
           errorMsg = errorMsg.replace(
@@ -90,6 +93,7 @@ export async function processPDFFiles({
             '<span style="background-color: yellow; font-weight: bold;">Se detectó que pertenece a: $1</span>'
           );
         }
+
         onEvent({
           progress: processedCount,
           total: totalFiles,
@@ -100,6 +104,7 @@ export async function processPDFFiles({
           successes: successesCount,
           failures: failuresCount,
         });
+
         return {
           status: "rejected",
           reason: errorMsg,
@@ -113,23 +118,14 @@ export async function processPDFFiles({
 
 /**
  * Genera un Excel a partir de los resultados exitosos y, opcionalmente, incluye la hoja de estadísticas.
- * Si se recibe un solo registro y se extrajo un título, se usa ese título; de lo contrario se utiliza un nombre base según el formato.
- *
- * @param successes Arreglo de conversiones exitosas.
- * @param pdfFormat Formato del PDF.
- * @param stats (Opcional) Estadísticas de conversión que se incluirán en la hoja "Estadisticas".
- * @returns Objeto con excelBuffer y fileName (nombre codificado).
+ * Llama internamente a generateExcel (definida en excelUtils.ts).
  */
 export async function generateExcelFromResults(
   successes: ConversionSuccess[],
   pdfFormat: PDFFormat,
   stats?: ExcelStats
 ): Promise<{ excelBuffer: Buffer; fileName: string }> {
-  let tituloExtraido: string | undefined;
-  if (successes.length === 1 && successes[0]?.titulo) {
-    tituloExtraido = successes[0].titulo;
-  }
-
+  // Determinar nombre base del archivo
   let baseFileName = "";
   switch (pdfFormat) {
     case "CERTIFICADO_DE_HOMOLOGACION":
@@ -148,18 +144,23 @@ export async function generateExcelFromResults(
       baseFileName = "Consolidado";
   }
 
-  const nombreArchivo =
-    successes.length === 1 && tituloExtraido
-      ? tituloExtraido
-      : baseFileName;
+  // Si hay un solo registro y extrajo un título, usarlo
+  let tituloExtraido: string | undefined;
+  if (successes.length === 1 && successes[0]?.titulo) {
+    tituloExtraido = successes[0].titulo;
+  }
+  const nombreArchivo = successes.length === 1 && tituloExtraido
+    ? tituloExtraido
+    : baseFileName;
 
   // Preparar los registros para la hoja "Datos"
   const registros = successes.map((r) => ({
     "Nombre PDF": r.fileName,
-    ...r.datos,
-  }));
+    ...r.datos,  // Los campos extraídos del PDF
+  })) as Array<{ [key: string]: any }>;
 
-  // Se llama a generateExcel pasando el objeto stats para que se genere la hoja "Estadisticas"
+  // Llamamos a la función "generateExcel" que está en excelUtils.ts
   const { buffer, encodedName } = await generateExcel(registros, nombreArchivo, pdfFormat, stats);
+
   return { excelBuffer: buffer, fileName: encodedName };
 }

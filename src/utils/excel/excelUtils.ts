@@ -22,15 +22,37 @@ function stripHtmlTags(htmlString: string): string {
 }
 
 /**
+ * Normaliza un valor de placa o similar eliminando todos los guiones.
+ * Si el resultado (sin guiones) tiene:
+ *   - EXACTAMENTE 6 caracteres, se toma tal cual (no hay dígito verificador).
+ *   - Más de 6 caracteres, se toman los primeros 6 como la patente y el resto se asigna como dígito verificador.
+ *
+ * Ejemplos:
+ *   "LXWJ75-4"   => { plate: "LXWJ75", checkDigit: "4" }
+ *   "LXW-J75-4"  => { plate: "LXWJ75", checkDigit: "4" }
+ *   "THJL54"     => { plate: "THJL54" }
+ *   "THJL-11"    => { plate: "THJL11" }
+ */
+function normalizePlateWithCheck(value: string): { plate: string; checkDigit?: string } {
+  // Se eliminan todos los guiones y todos los espacios.
+  const cleaned = value.replace(/-/g, "").replace(/\s/g, "");
+  if (cleaned.length > 6) {
+    return { plate: cleaned.substring(0, 6), checkDigit: cleaned.substring(6) };
+  }
+  return { plate: cleaned };
+}
+
+
+/**
  * Genera un archivo Excel con dos hojas:
- *  - "Datos": Contiene los registros exitosos.
+ *  - "Datos": Contiene los registros exitosos, transformados según la lógica de normalización.
  *  - "Estadisticas": Muestra el resumen de procesamiento (totales y lista de archivos fallidos).
  *
  * @param registros Datos a incluir en la hoja "Datos".
  * @param fileName Nombre base del archivo.
  * @param pdfFormat (Opcional) Formato de PDF.
- * @param stats (Opcional) Estadísticas: totalProcesados, totalExitosos, totalFallidos y fallidos.
- * @returns Un objeto con el buffer del Excel y el nombre codificado.
+ * @param stats (Opcional) Estadísticas de conversión.
+ * @returns Objeto con el buffer del Excel y el nombre codificado.
  */
 export async function generateExcel(
   registros: Record<string, string>[],
@@ -38,59 +60,203 @@ export async function generateExcel(
   pdfFormat?: string,
   stats?: ExcelStats
 ): Promise<{ buffer: Buffer; encodedName: string }> {
+  // --- Transformación de registros según el formato ---
+  if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
+    // Para Homologación: procesar "Patente" eliminando guiones; no se asigna dígito verificador.
+    registros.forEach((registro) => {
+      if (registro["Patente"] && typeof registro["Patente"] === "string") {
+        registro["Patente"] = registro["Patente"].replace(/-/g, "").trim();
+      }
+      delete registro["digito verificador"];
+    });
+  } else if (pdfFormat === "PERMISO_CIRCULACION") {
+    // Para Permiso de Circulación: procesar "Placa Única" usando normalizePlateWithCheck.
+    registros.forEach((registro) => {
+      if (registro["Placa Única"] && typeof registro["Placa Única"] === "string") {
+        const normalized = normalizePlateWithCheck(registro["Placa Única"]);
+        registro["Placa Única"] = normalized.plate;
+        if (normalized.checkDigit) {
+          registro["digito verificador"] = normalized.checkDigit;
+        } else {
+          delete registro["digito verificador"];
+        }
+      }
+    });
+  } else if (pdfFormat === "SOAP") {
+    // Para SOAP: procesar "INSCRIPCION R.V.M" usando la misma lógica.
+    registros.forEach((registro) => {
+      if (registro["INSCRIPCION R.V.M"] && typeof registro["INSCRIPCION R.V.M"] === "string") {
+        const normalized = normalizePlateWithCheck(registro["INSCRIPCION R.V.M"]);
+        registro["INSCRIPCION R.V.M"] = normalized.plate;
+        if (normalized.checkDigit) {
+          registro["digito verificador"] = normalized.checkDigit;
+        } else {
+          delete registro["digito verificador"];
+        }
+      }
+      // Opcionalmente, si existen otros campos como "Patente" o "Placa Única" se pueden procesar con regex.
+      if (registro["Patente"] && typeof registro["Patente"] === "string") {
+        const match = registro["Patente"].match(/^(.+)-(.+)$/);
+        if (match) {
+          registro["Patente"] = match[1].trim();
+          registro["digito verificador"] = match[2].trim();
+        }
+      }
+      if (registro["Placa Única"] && typeof registro["Placa Única"] === "string") {
+        const match = registro["Placa Única"].match(/^(.+)-(.+)$/);
+        if (match) {
+          registro["Placa Única"] = match[1].trim();
+          registro["digito verificador"] = match[2].trim();
+        }
+      }
+    });
+  } else {
+    // Para otros formatos: procesar los campos "Patente", "Placa Única" y "INSCRIPCION R.V.M" usando una separación simple.
+    registros.forEach((registro) => {
+      ["Patente", "Placa Única", "INSCRIPCION R.V.M"].forEach((key) => {
+        if (
+          registro[key] &&
+          typeof registro[key] === "string" &&
+          registro[key].includes("-")
+        ) {
+          const parts = registro[key].split("-");
+          if (parts.length > 1) {
+            // Unir todas las partes, luego separar los primeros 6 caracteres como placa
+            const combined = parts.join("").trim();
+            registro[key] = combined.substring(0, 6);
+            registro["digito verificador"] = combined.substring(6);
+          }
+        }
+      });
+    });
+  }
+  // --- Fin de transformación ---
+
+  // --- Crear el workbook y la hoja "Datos" ---
   const workbook = await XlsxPopulate.fromBlankAsync();
-
-  // Hoja "Datos"
   const dataSheet = workbook.sheet(0) as any;
-  dataSheet.name("Datos");
+  // Forzamos el casting a any para poder usar el método .name()
+  (dataSheet as any).name("Datos");
 
-  if (registros.length === 0) {
+  // --- Reordenar registros ---
+  function orderRegistro(registro: { [key: string]: any }): { [key: string]: any } {
+    const ordered: { [key: string]: any } = {};
+    // Agregar "Nombre PDF" primero.
+    if ("Nombre PDF" in registro) {
+      ordered["Nombre PDF"] = registro["Nombre PDF"];
+    }
+    if (pdfFormat === "CERTIFICADO_DE_HOMOLOGACION") {
+      if ("Patente" in registro) {
+        ordered["Patente"] = registro["Patente"];
+      }
+    } else if (pdfFormat === "PERMISO_CIRCULACION") {
+      if ("Placa Única" in registro) {
+        ordered["Placa Única"] = registro["Placa Única"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      }
+    } else if (pdfFormat === "SOAP") {
+      if ("INSCRIPCION R.V.M" in registro) {
+        ordered["INSCRIPCION R.V.M"] = registro["INSCRIPCION R.V.M"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      }
+      if ("Patente" in registro) {
+        ordered["Patente"] = registro["Patente"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      } else if ("Placa Única" in registro) {
+        ordered["Placa Única"] = registro["Placa Única"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      }
+    } else {
+      if ("Patente" in registro) {
+        ordered["Patente"] = registro["Patente"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      } else if ("Placa Única" in registro) {
+        ordered["Placa Única"] = registro["Placa Única"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      } else if ("INSCRIPCION R.V.M" in registro) {
+        ordered["INSCRIPCION R.V.M"] = registro["INSCRIPCION R.V.M"];
+        if ("digito verificador" in registro) {
+          ordered["digito verificador"] = registro["digito verificador"];
+        }
+      }
+    }
+    // Agregar el resto de las propiedades que no se hayan incluido aún.
+    Object.keys(registro).forEach((key) => {
+      if (!["Nombre PDF", "Patente", "Placa Única", "INSCRIPCION R.V.M", "digito verificador"].includes(key)) {
+        ordered[key] = registro[key];
+      }
+    });
+    return ordered;
+  }
+
+  const orderedRegistros = registros.map(orderRegistro);
+
+  // --- Forzar la inclusión de la columna "digito verificador" ---
+  // Si al menos un registro tiene "digito verificador", se asegura que todos la tengan (aunque sea vacía).
+  const hasCheckDigit = orderedRegistros.some(record => record.hasOwnProperty("digito verificador"));
+  if (hasCheckDigit) {
+    orderedRegistros.forEach(record => {
+      if (!record.hasOwnProperty("digito verificador")) {
+        record["digito verificador"] = "";
+      }
+    });
+  }
+
+  // --- Calcular la unión de todos los encabezados ---
+  const headerSet = new Set<string>();
+  orderedRegistros.forEach(record => {
+    Object.keys(record).forEach(key => headerSet.add(key));
+  });
+  const headers = Array.from(headerSet);
+
+  // --- Escribir encabezados y registros en la hoja "Datos" ---
+  if (orderedRegistros.length === 0) {
     dataSheet.cell(1, 1).value("No se encontraron datos para generar el Excel.");
   } else {
-    // Los encabezados se obtienen de las claves del primer registro.
-    const headers = Object.keys(registros[0]);
     headers.forEach((header, colIndex) => {
       dataSheet.cell(1, colIndex + 1).value(header);
     });
-    // Insertar cada registro
-    registros.forEach((registro, rowIndex) => {
+    orderedRegistros.forEach((registro, rowIndex) => {
       headers.forEach((header, colIndex) => {
         dataSheet.cell(rowIndex + 2, colIndex + 1).value(registro[header] || "");
       });
     });
-    setColumnWidths(dataSheet, headers, registros);
-    adjustRowHeights(dataSheet, registros);
+    setColumnWidths(dataSheet, headers, orderedRegistros);
+    adjustRowHeights(dataSheet, orderedRegistros);
   }
 
-  // Hoja "Estadisticas": se crea si se proporcionan estadísticas
+  // --- Crear hoja "Estadisticas" si se proporcionan ---
   if (stats) {
+    // Forzamos el casting a any para usar addSheet.
     const statsSheet = (workbook as any).addSheet("Estadisticas");
-    statsSheet.name("Estadisticas");
+    (statsSheet as any).name("Estadisticas");
 
-    // Título
-    statsSheet
-      .cell(1, 1)
-      .value("Estadísticas de Conversión")
-      .style({ bold: true, fill: "ffffff" });
-    // Totales
+    statsSheet.cell(1, 1).value("Estadísticas de Conversión").style({ bold: true, fill: "ffffff" });
     statsSheet.cell(3, 1).value("Total Procesados:");
     statsSheet.cell(3, 2).value(stats.totalProcesados).style({ fill: "ffffff" });
     statsSheet.cell(4, 1).value("Total Exitosos:");
-    statsSheet.cell(4, 2).value(stats.totalExitosos).style({ fill: "C6EFCE" }); // Verde claro
+    statsSheet.cell(4, 2).value(stats.totalExitosos).style({ fill: "C6EFCE" });
     statsSheet.cell(5, 1).value("Total Fallidos:");
-    statsSheet.cell(5, 2).value(stats.totalFallidos).style({ fill: "FFC7CE" }); // Rojo claro
+    statsSheet.cell(5, 2).value(stats.totalFallidos).style({ fill: "FFC7CE" });
 
-    // Encabezado para archivos fallidos
-    statsSheet
-      .cell(7, 1)
-      .value("Archivos Fallidos")
-      .style({ bold: true, fill: "ffffff" });
+    statsSheet.cell(7, 1).value("Archivos Fallidos").style({ bold: true, fill: "ffffff" });
     statsSheet.cell(8, 1).value("Nombre Archivo");
     statsSheet.cell(8, 2).value("Error");
 
     let row = 9;
     stats.fallidos.forEach((fallo) => {
-      // Se elimina el HTML del error antes de escribirlo
       const cleanError = stripHtmlTags(fallo.error);
       statsSheet.cell(row, 1).value(fallo.fileName);
       statsSheet.cell(row, 2).value(cleanError);
@@ -100,6 +266,7 @@ export async function generateExcel(
     logger.info("No se proporcionaron estadísticas, por lo que no se creará la hoja 'Estadisticas'.");
   }
 
+  // --- Salida del Excel ---
   const finalFileName = sanitizarNombre(fileName);
   const encodedName = encodeURIComponent(
     finalFileName.endsWith(".xlsx") ? finalFileName : `${finalFileName}.xlsx`

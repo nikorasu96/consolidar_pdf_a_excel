@@ -58,24 +58,26 @@ export function extraerDatosPermisoCirculacion(text: string): { data: Record<str
 }
 
 /**
- * Validación "best-effort" para Permiso de Circulación.
+ * Validación "best-effort" para Permiso de Circulación, adaptada para que, si algún campo obligatorio
+ * (exceptuando las validaciones especiales de pago, que se mantienen) no cumple, se lance un error.
+ *
  * - Para campos obligatorios (Placa Única, Código SII, Valor Permiso, Total a pagar, Fecha de emisión, Fecha de vencimiento, Forma de Pago)
  *   se requiere que tengan al menos 3 caracteres.
  * - Los campos de pago ("Pago total", "Pago Cuota 1", "Pago Cuota 2") se validan contra su patrón.
  */
 export function bestEffortValidationPermisoCirculacion(datos: Record<string, string>, fileName: string): void {
-  const warnings: string[] = [];
+  const errors: string[] = [];
 
   // Validar campos obligatorios (no de pago)
   const obligatorios = ["Placa Única", "Código SII", "Valor Permiso", "Total a pagar", "Fecha de emisión", "Fecha de vencimiento", "Forma de Pago"];
   for (const field of obligatorios) {
     const value = datos[field];
     if (!value || value.trim().length < 3) {
-      warnings.push(`Campo "${field}" es obligatorio y debe tener al menos 3 caracteres.`);
+      errors.push(`Campo "${field}" es obligatorio y debe tener al menos 3 caracteres.`);
     }
   }
 
-  // Validar campos de pago
+  // Validar campos de pago (manteniendo la lógica especial)
   const pagos = ["Pago total", "Pago Cuota 1", "Pago Cuota 2"];
   const pagosPattern: Record<string, RegExp> = {
     "Pago total": /^(X|No aplica)$/i,
@@ -85,11 +87,11 @@ export function bestEffortValidationPermisoCirculacion(datos: Record<string, str
   for (const field of pagos) {
     const value = datos[field];
     if (!pagosPattern[field].test(value)) {
-      warnings.push(`Campo "${field}" con valor "${value}" no es válido.`);
+      errors.push(`Campo "${field}" con valor "${value}" no es válido.`);
     }
   }
 
-  if (warnings.length > 0) {
-    logger.warn(`BEST-EFFORT: El archivo ${fileName} presenta problemas:\n - ${warnings.join("\n - ")}`);
+  if (errors.length > 0) {
+    throw new Error(`El archivo ${fileName} presenta problemas:\n - ${errors.join("\n - ")}`);
   }
 }

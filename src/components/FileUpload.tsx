@@ -1,4 +1,3 @@
-// src/components/FileUpload.tsx
 "use client";
 
 import React, { useRef, useEffect, useCallback, ChangeEvent, DragEvent, useState } from "react";

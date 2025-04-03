@@ -40,12 +40,21 @@ export async function POST(request: Request) {
         const successes = results.filter(r => r.status === "fulfilled") as { status: "fulfilled"; value: any }[];
         const failures = results.filter(r => r.status === "rejected") as { status: "rejected"; reason: string }[];
 
-        // Si no hay éxitos, retorna error y se cierra el stream
+        // Si no hay éxitos, en lugar de retornar error sin Excel, generamos Excel con estadísticas
         if (successes.length === 0) {
-          const errorMsg = "No se encontraron datos para generar el Excel. Verifica que los PDFs correspondan al formato seleccionado.";
+          const stats = {
+            totalProcesados: files.length,
+            totalExitosos: 0,
+            totalFallidos: failures.length,
+            fallidos: failures.map((f, index) => ({
+              fileName: files[index].name,
+              error: f.reason,
+            })),
+          };
+
+          const { excelBuffer, fileName } = await generateExcelFromResults([], pdfFormat, stats);
           sendEvent({
             final: {
-              error: errorMsg,
               totalProcesados: files.length,
               totalExitosos: 0,
               totalFallidos: failures.length,
@@ -54,8 +63,8 @@ export async function POST(request: Request) {
                 fileName: files[index].name,
                 error: f.reason,
               })),
-              excel: null,
-              fileName: null,
+              excel: excelBuffer.toString("base64"),
+              fileName,
             },
           });
           controller.close();

@@ -1,19 +1,25 @@
-// src/components/Parent.tsx
 import React, { useCallback, useState } from "react";
 import FileUpload from "./FileUpload";
 
-export default function Parent() {
+interface ParentProps {
+  onFilesChange?: (files: FileList | null) => void;
+  clearTrigger?: boolean;
+  disabled?: boolean;
+}
+
+export default function Parent({ onFilesChange, clearTrigger = false, disabled = false }: ParentProps) {
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
 
-  // Memoizamos la función para evitar cambios de referencia en cada render
   const handleFilesChange = useCallback((files: FileList | null) => {
     setSelectedFiles(files);
-  }, []);
+    if (onFilesChange) {
+      onFilesChange(files);
+    }
+  }, [onFilesChange]);
 
   return (
     <div>
-      <h1>Sube tus archivos</h1>
-      <FileUpload onFilesChange={handleFilesChange} clearTrigger={false} disabled={false} />
+      <FileUpload onFilesChange={handleFilesChange} clearTrigger={clearTrigger} disabled={disabled} />
       {selectedFiles && <p>Archivos seleccionados: {selectedFiles.length}</p>}
     </div>
   );

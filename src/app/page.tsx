@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import FileUpload from "../components/FileUpload";
-import InstructionsModal from "../components/InstructionsModal";
+import Parent from "@/components/Parent";
+import InstructionsModal from "@/components/InstructionsModal";
 import { validatePDFFiles } from "../utils/pdf/fileUtils";
 import { saveAs } from "file-saver";
 import readXlsxFile from "read-excel-file";
@@ -18,6 +18,7 @@ function formatTime(totalSeconds: number): string {
 }
 
 export default function Home() {
+  // Estados para la conversión y procesamiento
   const [files, setFiles] = useState<FileList | null>(null);
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<any[][] | null>(null);
@@ -40,6 +41,7 @@ export default function Home() {
   const [clearFileInput, setClearFileInput] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
 
+  // Función para reiniciar resultados
   const resetResults = () => {
     setPreviewData(null);
     setExcelBlob(null);
@@ -57,6 +59,7 @@ export default function Home() {
     setEstimatedSeconds(0);
   };
 
+  // Función callback que se pasa al Parent para recibir los archivos seleccionados
   const handleFileChange = (fileList: FileList | null) => {
     setFiles(fileList);
     resetResults();
@@ -172,7 +175,7 @@ export default function Home() {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Error:", error);
       alert("Ocurrió un error");
     } finally {
@@ -203,8 +206,9 @@ export default function Home() {
               )}
 
               <form onSubmit={handleSubmit}>
+                {/* Se reemplaza el FileUpload directo por el componente Parent */}
                 <div className="mb-4">
-                  <FileUpload onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
+                  <Parent onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
                 </div>
 
                 {files && files.length > 0 && (
@@ -297,10 +301,7 @@ export default function Home() {
               )}
 
               {exitosos.length > 0 && (
-                <div
-                  className="mt-4 p-3 rounded"
-                  style={{ backgroundColor: "#d4edda" }}
-                >
+                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
                   <h5 className="text-center mb-2">Archivos Exitosos</h5>
                   <div className="overflow-auto" style={{ maxHeight: "300px" }}>
                     <ul className="list-group">
@@ -312,14 +313,10 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
-
               )}
 
               {fallidos.length > 0 && (
-                <div
-                  className="mt-4 p-3 rounded"
-                  style={{ backgroundColor: "#f8d7da" }}
-                >
+                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#f8d7da" }}>
                   <h5 className="text-center mb-2">Archivos Fallidos</h5>
                   <div className="overflow-auto" style={{ maxHeight: "300px" }}>
                     <ul className="list-group">
@@ -332,7 +329,6 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
-
               )}
 
               {previewData && (
@@ -373,14 +369,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* <div className="text-center mt-4">
-        <Link href="/excel-to-db">
-          <button className="btn btn-info">
-            Ingresar Datos de Excel a la BD
-          </button>
-        </Link>
-      </div> */}
-
       {isExpanded && previewData && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
@@ -390,13 +378,11 @@ export default function Home() {
             className="bg-white rounded shadow w-100"
             style={{ maxWidth: "90%", maxHeight: "90%", overflow: "auto", position: "relative" }}
           >
-            {/* Encabezado sticky para el botón de cerrar */}
             <div className="sticky-top bg-white p-2 d-flex justify-content-end" style={{ zIndex: 3 }}>
               <button className="btn btn-danger" onClick={() => setIsExpanded(false)}>
                 Cerrar Vista
               </button>
             </div>
-
             <div className="p-4">
               <h4 className="mb-3 text-center">Vista Expandida del Excel</h4>
               <div className="table-responsive">
@@ -433,8 +419,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-
     </div>
   );
 }

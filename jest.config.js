@@ -1,7 +1,7 @@
 // jest.config.js
 module.exports = {
   preset: "ts-jest",
-  testEnvironment: "jsdom", // Cambia a "node" si solo haces tests en backend
+
   // Mapeos de alias para "@/..."
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
@@ -19,5 +19,6 @@ module.exports = {
     "<rootDir>/src/**/*.test.(ts|tsx)",
     "<rootDir>/__tests__/**/*.test.(ts|tsx)"
   ],
-  setupFiles: ["<rootDir>/jest.setup.js"],
+  testEnvironment: "jsdom", // Cambia a "node" si solo haces tests en backend
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
 };

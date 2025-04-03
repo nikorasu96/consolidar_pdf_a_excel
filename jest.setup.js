@@ -1,12 +1,22 @@
 // jest.setup.js
 const path = require("path");
 const dotenv = require("dotenv");
+// Configuración inicial: asegúrate de que 'expect' esté definido globalmente
+global.expect = require('expect');
+import '@testing-library/jest-dom';
+
+// Ahora carga los matchers de jest-dom
+require('@testing-library/jest-dom');
+
+
+if (typeof expect !== "undefined" && typeof expect.extend === "function") {
+  require("@testing-library/jest-dom");
+}
+
 
 // Cargar variables de entorno si usas .env.local
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
-// Extiende expect con los matchers de Testing Library
-require("@testing-library/jest-dom/extend-expect");
 
 // Mock global de pdf2json
 jest.mock("pdf2json", () => {

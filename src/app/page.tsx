@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -59,7 +60,7 @@ export default function Home() {
     setEstimatedSeconds(0);
   };
 
-  // Función callback que se pasa al Parent para recibir los archivos seleccionados
+  // Callback para recibir archivos del componente Parent
   const handleFileChange = (fileList: FileList | null) => {
     setFiles(fileList);
     resetResults();
@@ -190,7 +191,6 @@ export default function Home() {
       {showInstructions && (
         <InstructionsModal onClose={() => setShowInstructions(false)} />
       )}
-
       <div className="row justify-content-center">
         <div className="col-12 col-lg-10">
           <div className="card shadow-sm">
@@ -206,9 +206,13 @@ export default function Home() {
               )}
 
               <form onSubmit={handleSubmit}>
-                {/* Se reemplaza el FileUpload directo por el componente Parent */}
+                {/* Componente para cargar archivos */}
                 <div className="mb-4">
-                  <Parent onFilesChange={handleFileChange} clearTrigger={clearFileInput} disabled={loading} />
+                  <Parent
+                    onFilesChange={handleFileChange}
+                    clearTrigger={clearFileInput}
+                    disabled={loading}
+                  />
                 </div>
 
                 {files && files.length > 0 && (
@@ -220,11 +224,17 @@ export default function Home() {
                 )}
 
                 <div className="mb-4">
-                  <label className="form-label fw-bold">Selecciona el formato de PDF:</label>
+                  <label className="form-label fw-bold">
+                    Selecciona el formato de PDF:
+                  </label>
                   <div className="btn-group d-flex flex-wrap">
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
+                          ? "btn-primary"
+                          : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                       disabled={loading}
                     >
@@ -232,7 +242,9 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("CRT")}
                       disabled={loading}
                     >
@@ -240,7 +252,9 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("SOAP")}
                       disabled={loading}
                     >
@@ -248,7 +262,11 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
+                      className={`btn ${
+                        pdfFormat === "PERMISO_CIRCULACION"
+                          ? "btn-primary"
+                          : "btn-outline-primary"
+                      } flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
                     >
@@ -258,10 +276,19 @@ export default function Home() {
                 </div>
 
                 <div className="d-flex justify-content-center gap-3 mb-4">
-                  <button type="submit" className="btn btn-success px-4" disabled={loading}>
+                  <button
+                    type="submit"
+                    className="btn btn-success px-4"
+                    disabled={loading}
+                  >
                     {loading ? "Procesando..." : "Convertir"}
                   </button>
-                  <button type="button" className="btn btn-secondary px-4" onClick={handleLimpiar} disabled={loading}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary px-4"
+                    onClick={handleLimpiar}
+                    disabled={loading}
+                  >
                     Limpiar
                   </button>
                 </div>
@@ -273,7 +300,11 @@ export default function Home() {
                   <div className="row text-center">
                     <div className="col-6 col-md-3 mb-2">
                       <p className="fw-bold">Procesados</p>
-                      <p>{loading && files ? `${progressCount} de ${files.length}` : totalProcesados}</p>
+                      <p>
+                        {loading && files
+                          ? `${progressCount} de ${files.length}`
+                          : totalProcesados}
+                      </p>
                     </div>
                     <div className="col-6 col-md-3 mb-2">
                       <p className="fw-bold text-success">Exitosos</p>
@@ -355,10 +386,18 @@ export default function Home() {
                     </table>
                   </div>
                   <div className="d-flex justify-content-between align-items-center mt-3">
-                    <button className="btn btn-outline-secondary" onClick={() => setIsExpanded(true)}>
+                    <button
+                      className="btn btn-outline-secondary"
+                      onClick={() => setIsExpanded(true)}
+                    >
                       Expandir Vista
                     </button>
-                    <button className="btn btn-success" onClick={() => { if (excelBlob) saveAs(excelBlob, fileName); }}>
+                    <button
+                      className="btn btn-success"
+                      onClick={() => {
+                        if (excelBlob) saveAs(excelBlob, fileName);
+                      }}
+                    >
                       Descargar Excel
                     </button>
                   </div>
@@ -368,20 +407,8 @@ export default function Home() {
           </div>
         </div>
       </div>
-            {/* ======================================================== */}
-      {/* INICIO: Overlay de "Sitio en Construcción" */}
-{/* 
-      <div className="text-center mt-4">
-        <Link href="/excel-to-db">
-          <button className="btn btn-info">
-            Ingresar Datos de Excel a la BD
-          </button>
-        </Link>
-      </div> */}
 
-            {/* FIN: Overlay de "Sitio en Construcción" */}
-      {/* ======================================================== */}
-
+      {/* Overlay para vista expandida */}
       {isExpanded && previewData && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
@@ -389,9 +416,17 @@ export default function Home() {
         >
           <div
             className="bg-white rounded shadow w-100"
-            style={{ maxWidth: "90%", maxHeight: "90%", overflow: "auto", position: "relative" }}
+            style={{
+              maxWidth: "90%",
+              maxHeight: "90%",
+              overflow: "auto",
+              position: "relative",
+            }}
           >
-            <div className="sticky-top bg-white p-2 d-flex justify-content-end" style={{ zIndex: 3 }}>
+            <div
+              className="sticky-top bg-white p-2 d-flex justify-content-end"
+              style={{ zIndex: 3 }}
+            >
               <button className="btn btn-danger" onClick={() => setIsExpanded(false)}>
                 Cerrar Vista
               </button>

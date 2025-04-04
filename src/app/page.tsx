@@ -215,13 +215,15 @@ export default function Home() {
                   />
                 </div>
 
-                {files && files.length > 0 && (
+                {
+                files && files.length > 0 && (
                   <div className="mb-3 text-center">
                     <span className="badge bg-info text-dark fs-5">
                       Archivos seleccionados: {files.length}
                     </span>
                   </div>
-                )}
+                )
+                }
 
                 <div className="mb-4">
                   <label className="form-label fw-bold">
@@ -331,7 +333,7 @@ export default function Home() {
                 </div>
               )}
 
-              {exitosos.length > 0 && (
+              {/* {exitosos.length > 0 && (
                 <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
                   <h5 className="text-center mb-2">Archivos Exitosos</h5>
                   <div className="overflow-auto" style={{ maxHeight: "300px" }}>
@@ -360,7 +362,7 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
-              )}
+              )} */}
 
               {previewData && (
                 <div className="mt-4">

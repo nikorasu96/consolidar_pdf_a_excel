@@ -14,10 +14,14 @@ export interface ExcelStats {
 
 /**
  * Función auxiliar para eliminar etiquetas HTML de un string.
- * @param htmlString Cadena que puede contener HTML.
+ * Se asegura de que el valor recibido sea tratado como cadena.
+ * @param htmlString Valor que puede contener HTML.
  * @returns Cadena limpia sin etiquetas HTML.
  */
-function stripHtmlTags(htmlString: string): string {
+function stripHtmlTags(htmlString: any): string {
+  if (typeof htmlString !== "string") {
+    htmlString = String(htmlString);
+  }
   return htmlString.replace(/<[^>]*>/g, "");
 }
 
@@ -41,7 +45,6 @@ function normalizePlateWithCheck(value: string): { plate: string; checkDigit?: s
   }
   return { plate: cleaned };
 }
-
 
 /**
  * Genera un archivo Excel con dos hojas:
@@ -94,7 +97,6 @@ export async function generateExcel(
           delete registro["digito verificador"];
         }
       }
-      // Opcionalmente, si existen otros campos como "Patente" o "Placa Única" se pueden procesar con regex.
       if (registro["Patente"] && typeof registro["Patente"] === "string") {
         const match = registro["Patente"].match(/^(.+)-(.+)$/);
         if (match) {
@@ -121,7 +123,6 @@ export async function generateExcel(
         ) {
           const parts = registro[key].split("-");
           if (parts.length > 1) {
-            // Unir todas las partes, luego separar los primeros 6 caracteres como placa
             const combined = parts.join("").trim();
             registro[key] = combined.substring(0, 6);
             registro["digito verificador"] = combined.substring(6);
@@ -135,13 +136,11 @@ export async function generateExcel(
   // --- Crear el workbook y la hoja "Datos" ---
   const workbook = await XlsxPopulate.fromBlankAsync();
   const dataSheet = workbook.sheet(0) as any;
-  // Forzamos el casting a any para poder usar el método .name()
   (dataSheet as any).name("Datos");
 
   // --- Reordenar registros ---
   function orderRegistro(registro: { [key: string]: any }): { [key: string]: any } {
     const ordered: { [key: string]: any } = {};
-    // Agregar "Nombre PDF" primero.
     if ("Nombre PDF" in registro) {
       ordered["Nombre PDF"] = registro["Nombre PDF"];
     }
@@ -192,7 +191,6 @@ export async function generateExcel(
         }
       }
     }
-    // Agregar el resto de las propiedades que no se hayan incluido aún.
     Object.keys(registro).forEach((key) => {
       if (!["Nombre PDF", "Patente", "Placa Única", "INSCRIPCION R.V.M", "digito verificador"].includes(key)) {
         ordered[key] = registro[key];
@@ -203,8 +201,7 @@ export async function generateExcel(
 
   const orderedRegistros = registros.map(orderRegistro);
 
-  // --- Forzar la inclusión de la columna "digito verificador" ---
-  // Si al menos un registro tiene "digito verificador", se asegura que todos la tengan (aunque sea vacía).
+  // Forzar la inclusión de "digito verificador"
   const hasCheckDigit = orderedRegistros.some(record => record.hasOwnProperty("digito verificador"));
   if (hasCheckDigit) {
     orderedRegistros.forEach(record => {
@@ -214,14 +211,12 @@ export async function generateExcel(
     });
   }
 
-  // --- Calcular la unión de todos los encabezados ---
   const headerSet = new Set<string>();
   orderedRegistros.forEach(record => {
     Object.keys(record).forEach(key => headerSet.add(key));
   });
   const headers = Array.from(headerSet);
 
-  // --- Escribir encabezados y registros en la hoja "Datos" ---
   if (orderedRegistros.length === 0) {
     dataSheet.cell(1, 1).value("No se encontraron datos para generar el Excel.");
   } else {
@@ -237,9 +232,7 @@ export async function generateExcel(
     adjustRowHeights(dataSheet, orderedRegistros);
   }
 
-  // --- Crear hoja "Estadisticas" si se proporcionan ---
   if (stats) {
-    // Forzamos el casting a any para usar addSheet.
     const statsSheet = (workbook as any).addSheet("Estadisticas");
     (statsSheet as any).name("Estadisticas");
 
@@ -266,7 +259,6 @@ export async function generateExcel(
     logger.info("No se proporcionaron estadísticas, por lo que no se creará la hoja 'Estadisticas'.");
   }
 
-  // --- Salida del Excel ---
   const finalFileName = sanitizarNombre(fileName);
   const encodedName = encodeURIComponent(
     finalFileName.endsWith(".xlsx") ? finalFileName : `${finalFileName}.xlsx`

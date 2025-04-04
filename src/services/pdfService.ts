@@ -17,8 +17,16 @@ export type ConversionFailure = {
   error: string;
 };
 
+// Exportamos SettledFailure para que otros módulos puedan importarlo si lo requieren
+export type SettledFailure = {
+  status: "rejected";
+  reason: {
+    fileName: string;
+    error: string;
+  };
+};
+
 type SettledSuccess<T> = { status: "fulfilled"; value: T };
-type SettledFailure = { status: "rejected"; reason: string };
 export type SettledResult<T> = SettledSuccess<T> | SettledFailure;
 
 interface ProcessOptions {
@@ -107,7 +115,10 @@ export async function processPDFFiles({
 
         return {
           status: "rejected",
-          reason: errorMsg,
+          reason: {
+            fileName: file.name,
+            error: errorMsg,
+          },
         } as SettledFailure;
       }
     })
@@ -125,7 +136,6 @@ export async function generateExcelFromResults(
   pdfFormat: PDFFormat,
   stats?: ExcelStats
 ): Promise<{ excelBuffer: Buffer; fileName: string }> {
-  // Determinar nombre base del archivo
   let baseFileName = "";
   switch (pdfFormat) {
     case "CERTIFICADO_DE_HOMOLOGACION":
@@ -144,23 +154,17 @@ export async function generateExcelFromResults(
       baseFileName = "Consolidado";
   }
 
-  // Si hay un solo registro y extrajo un título, usarlo
   let tituloExtraido: string | undefined;
   if (successes.length === 1 && successes[0]?.titulo) {
     tituloExtraido = successes[0].titulo;
   }
-  const nombreArchivo = successes.length === 1 && tituloExtraido
-    ? tituloExtraido
-    : baseFileName;
+  const nombreArchivo = successes.length === 1 && tituloExtraido ? tituloExtraido : baseFileName;
 
-  // Preparar los registros para la hoja "Datos"
   const registros = successes.map((r) => ({
     "Nombre PDF": r.fileName,
-    ...r.datos,  // Los campos extraídos del PDF
+    ...r.datos, // Los campos extraídos del PDF
   })) as Array<{ [key: string]: any }>;
 
-  // Llamamos a la función "generateExcel" que está en excelUtils.ts
   const { buffer, encodedName } = await generateExcel(registros, nombreArchivo, pdfFormat, stats);
-
   return { excelBuffer: buffer, fileName: encodedName };
 }

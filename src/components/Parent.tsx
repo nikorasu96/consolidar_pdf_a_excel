@@ -20,7 +20,7 @@ export default function Parent({ onFilesChange, clearTrigger = false, disabled =
   return (
     <div>
       <FileUpload onFilesChange={handleFilesChange} clearTrigger={clearTrigger} disabled={disabled} />
-      {selectedFiles && <p>Archivos seleccionados: {selectedFiles.length}</p>}
+      {/* {selectedFiles && <p>Archivos seleccionados: {selectedFiles.length}</p>} */}
     </div>
   );
 }

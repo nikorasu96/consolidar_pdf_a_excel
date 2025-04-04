@@ -1,8 +1,15 @@
 // app/api/convert/route.ts
+
 import { NextResponse } from "next/server";
 import logger from "@/utils/logger";
 import type { PDFFormat } from "../../../types/pdfFormat";
-import { processPDFFiles, generateExcelFromResults } from "@/services/pdfService";
+// Importamos el tipo SettledFailure desde pdfService.ts
+import type { SettledFailure } from "@/services/pdfService";
+
+import {
+  processPDFFiles,
+  generateExcelFromResults,
+} from "@/services/pdfService";
 
 export const runtime = "nodejs";
 
@@ -25,7 +32,9 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         const sendEvent = (data: any) => {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+          );
         };
 
         // Procesa los PDFs
@@ -37,32 +46,39 @@ export async function POST(request: Request) {
         });
 
         // Separamos los resultados en éxitos y fallos
-        const successes = results.filter(r => r.status === "fulfilled") as { status: "fulfilled"; value: any }[];
-        const failures = results.filter(r => r.status === "rejected") as { status: "rejected"; reason: string }[];
+        const successes = results.filter((r) => r.status === "fulfilled") as {
+          status: "fulfilled";
+          value: any;
+        }[];
+        const failures = results.filter(r => r.status === "rejected") as SettledFailure[];
 
-        // Si no hay éxitos, en lugar de retornar error sin Excel, generamos Excel con estadísticas
+        // Mapeamos correctamente usando las propiedades del objeto reason
+        const fallidos = failures.map((f) => ({
+          fileName: f.reason.fileName,
+          error: f.reason.error,
+        }));
+
+        // Si no hay éxitos, generamos Excel con estadísticas
         if (successes.length === 0) {
           const stats = {
             totalProcesados: files.length,
             totalExitosos: 0,
             totalFallidos: failures.length,
-            fallidos: failures.map((f, index) => ({
-              fileName: files[index].name,
-              error: f.reason,
-            })),
+            fallidos: fallidos,
           };
 
-          const { excelBuffer, fileName } = await generateExcelFromResults([], pdfFormat, stats);
+          const { excelBuffer, fileName } = await generateExcelFromResults(
+            [],
+            pdfFormat,
+            stats
+          );
           sendEvent({
             final: {
               totalProcesados: files.length,
               totalExitosos: 0,
               totalFallidos: failures.length,
               exitosos: [],
-              fallidos: failures.map((f, index) => ({
-                fileName: files[index].name,
-                error: f.reason,
-              })),
+              fallidos: fallidos,
               excel: excelBuffer.toString("base64"),
               fileName,
             },
@@ -76,15 +92,12 @@ export async function POST(request: Request) {
           totalProcesados: files.length,
           totalExitosos: successes.length,
           totalFallidos: failures.length,
-          fallidos: failures.map((f, index) => ({
-            fileName: files[index].name,
-            error: f.reason,
-          })),
+          fallidos: fallidos,
         };
 
         // Generar el Excel pasando el objeto stats para que se genere la hoja "Estadisticas"
         const { excelBuffer, fileName } = await generateExcelFromResults(
-          successes.map(s => s.value),
+          successes.map((s) => s.value),
           pdfFormat,
           stats
         );
@@ -94,11 +107,8 @@ export async function POST(request: Request) {
             totalProcesados: files.length,
             totalExitosos: successes.length,
             totalFallidos: failures.length,
-            exitosos: successes.map(s => s.value),
-            fallidos: failures.map((f, index) => ({
-              fileName: files[index].name,
-              error: f.reason,
-            })),
+            exitosos: successes.map((s) => s.value),
+            fallidos: fallidos,
             excel: excelBuffer.toString("base64"),
             fileName,
           },

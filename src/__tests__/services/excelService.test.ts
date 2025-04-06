@@ -2,7 +2,6 @@
 import { uploadExcelFile } from "@/services/excelService";
 import XlsxPopulate from "xlsx-populate";
 import { getConnection } from "@/utils/db";
-import sql from "mssql";
 import type { PDFFormat } from "@/types/pdfFormat";
 
 // Mocks para XlsxPopulate

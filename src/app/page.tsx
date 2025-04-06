@@ -1,7 +1,6 @@
-// app/page.tsx
 "use client";
 
-import Link from "next/link";
+
 import { useState } from "react";
 import Parent from "@/components/Parent";
 import InstructionsModal from "@/components/InstructionsModal";
@@ -29,10 +28,6 @@ export default function Home() {
   const [totalProcesados, setTotalProcesados] = useState(0);
   const [totalExitosos, setTotalExitosos] = useState(0);
   const [totalFallidos, setTotalFallidos] = useState(0);
-  const [exitosos, setExitosos] = useState<
-    Array<{ fileName: string; datos: Record<string, string>; titulo?: string }>
-  >([]);
-  const [fallidos, setFallidos] = useState<Array<{ fileName: string; error: string }>>([]);
   const [formatMessage, setFormatMessage] = useState("");
   const [apiError, setApiError] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -50,11 +45,8 @@ export default function Home() {
     setTotalProcesados(0);
     setTotalExitosos(0);
     setTotalFallidos(0);
-    setExitosos([]);
-    setFallidos([]);
     setFormatMessage("");
     setApiError(null);
-    setIsExpanded(false);
     setDuration(null);
     setProgressCount(0);
     setEstimatedSeconds(0);
@@ -146,12 +138,6 @@ export default function Home() {
                 setTotalExitosos(data.final.totalExitosos);
                 setTotalFallidos(data.final.totalFallidos);
                 setFormatMessage(data.final.message || "");
-                if (data.final.exitosos) {
-                  setExitosos(data.final.exitosos);
-                }
-                if (data.final.fallidos) {
-                  setFallidos(data.final.fallidos);
-                }
                 if (data.final.excel) {
                   const byteCharacters = atob(data.final.excel);
                   const byteNumbers = new Array(byteCharacters.length);
@@ -206,7 +192,6 @@ export default function Home() {
               )}
 
               <form onSubmit={handleSubmit}>
-                {/* Componente para cargar archivos */}
                 <div className="mb-4">
                   <Parent
                     onFilesChange={handleFileChange}
@@ -215,15 +200,13 @@ export default function Home() {
                   />
                 </div>
 
-                {
-                files && files.length > 0 && (
+                {files && files.length > 0 && (
                   <div className="mb-3 text-center">
                     <span className="badge bg-info text-dark fs-5">
                       Archivos seleccionados: {files.length}
                     </span>
                   </div>
-                )
-                }
+                )}
 
                 <div className="mb-4">
                   <label className="form-label fw-bold">
@@ -232,11 +215,7 @@ export default function Home() {
                   <div className="btn-group d-flex flex-wrap">
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "CERTIFICADO_DE_HOMOLOGACION"
-                          ? "btn-primary"
-                          : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "CERTIFICADO_DE_HOMOLOGACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("CERTIFICADO_DE_HOMOLOGACION")}
                       disabled={loading}
                     >
@@ -244,9 +223,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "CRT" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("CRT")}
                       disabled={loading}
                     >
@@ -254,9 +231,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "SOAP" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("SOAP")}
                       disabled={loading}
                     >
@@ -264,11 +239,7 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      className={`btn ${
-                        pdfFormat === "PERMISO_CIRCULACION"
-                          ? "btn-primary"
-                          : "btn-outline-primary"
-                      } flex-fill m-1`}
+                      className={`btn ${pdfFormat === "PERMISO_CIRCULACION" ? "btn-primary" : "btn-outline-primary"} flex-fill m-1`}
                       onClick={() => handleFormatChange("PERMISO_CIRCULACION")}
                       disabled={loading}
                     >
@@ -278,24 +249,16 @@ export default function Home() {
                 </div>
 
                 <div className="d-flex justify-content-center gap-3 mb-4">
-                  <button
-                    type="submit"
-                    className="btn btn-success px-4"
-                    disabled={loading}
-                  >
+                  <button type="submit" className="btn btn-success px-4" disabled={loading}>
                     {loading ? "Procesando..." : "Convertir"}
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary px-4"
-                    onClick={handleLimpiar}
-                    disabled={loading}
-                  >
+                  <button type="button" className="btn btn-secondary px-4" onClick={handleLimpiar} disabled={loading}>
                     Limpiar
                   </button>
                 </div>
               </form>
 
+              {/* Sección de contadores */}
               {(loading || totalProcesados || totalExitosos || totalFallidos || duration !== null) && (
                 <div className="mt-4">
                   <h5 className="text-center mb-3">Resumen de Procesamiento</h5>
@@ -333,37 +296,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* {exitosos.length > 0 && (
-                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#d4edda" }}>
-                  <h5 className="text-center mb-2">Archivos Exitosos</h5>
-                  <div className="overflow-auto" style={{ maxHeight: "300px" }}>
-                    <ul className="list-group">
-                      {exitosos.map((item, index) => (
-                        <li key={index} className="list-group-item text-center">
-                          {item.fileName}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {fallidos.length > 0 && (
-                <div className="mt-4 p-3 rounded" style={{ backgroundColor: "#f8d7da" }}>
-                  <h5 className="text-center mb-2">Archivos Fallidos</h5>
-                  <div className="overflow-auto" style={{ maxHeight: "300px" }}>
-                    <ul className="list-group">
-                      {fallidos.map((item, index) => (
-                        <li key={index} className="list-group-item text-center">
-                          <span dangerouslySetInnerHTML={{ __html: item.fileName }} /> -{" "}
-                          <span dangerouslySetInnerHTML={{ __html: item.error }} />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )} */}
-
               {previewData && (
                 <div className="mt-4">
                   <h5 className="mb-3 text-center">Vista Previa del Excel</h5>
@@ -388,10 +320,7 @@ export default function Home() {
                     </table>
                   </div>
                   <div className="d-flex justify-content-between align-items-center mt-3">
-                    <button
-                      className="btn btn-outline-secondary"
-                      onClick={() => setIsExpanded(true)}
-                    >
+                    <button className="btn btn-outline-secondary" onClick={() => setIsExpanded(true)}>
                       Expandir Vista
                     </button>
                     <button
@@ -410,7 +339,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Overlay para vista expandida */}
       {isExpanded && previewData && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex justify-content-center align-items-center"
@@ -418,17 +346,9 @@ export default function Home() {
         >
           <div
             className="bg-white rounded shadow w-100"
-            style={{
-              maxWidth: "90%",
-              maxHeight: "90%",
-              overflow: "auto",
-              position: "relative",
-            }}
+            style={{ maxWidth: "90%", maxHeight: "90%", overflow: "auto", position: "relative" }}
           >
-            <div
-              className="sticky-top bg-white p-2 d-flex justify-content-end"
-              style={{ zIndex: 3 }}
-            >
+            <div className="sticky-top bg-white p-2 d-flex justify-content-end" style={{ zIndex: 3 }}>
               <button className="btn btn-danger" onClick={() => setIsExpanded(false)}>
                 Cerrar Vista
               </button>
@@ -440,15 +360,7 @@ export default function Home() {
                   <thead className="table-light">
                     <tr>
                       {previewData[0]?.map((header: string, idx: number) => (
-                        <th
-                          key={idx}
-                          style={{
-                            position: "sticky",
-                            top: 0,
-                            background: "#fff",
-                            zIndex: 2,
-                          }}
-                        >
+                        <th key={idx} style={{ position: "sticky", top: 0, background: "#fff", zIndex: 2 }}>
                           {header}
                         </th>
                       ))}

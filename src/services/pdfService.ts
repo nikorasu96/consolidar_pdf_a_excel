@@ -2,7 +2,6 @@
 import pLimit from "p-limit";
 import { procesarPDF } from "@/utils/pdf/pdfUtils";
 import { generateExcel, ExcelStats } from "@/utils/excel/excelUtils"; // <-- Usamos la función generateExcel
-import logger from "@/utils/logger";
 import type { PDFFormat } from "@/types/pdfFormat";
 
 export type ConversionSuccess = {

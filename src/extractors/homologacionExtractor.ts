@@ -1,5 +1,4 @@
 import { buscar } from "@/utils/pdf/pdfUtils";
-import logger from "@/utils/logger";
 
 export function extraerDatosHomologacion(text: string): Record<string, string> {
   return {

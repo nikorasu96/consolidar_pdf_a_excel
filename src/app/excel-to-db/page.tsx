@@ -36,8 +36,8 @@ export default function ExcelToDBPage() {
       try {
         const rows = await readXlsxFile(file);
         setPreviewData(rows);
-      } catch (error) {
-        logger.error("Error al leer el archivo Excel:", error);
+      } catch (_error) {
+        logger.error("Error al leer el archivo Excel:", _error);
       }
     }
   };
@@ -66,8 +66,8 @@ export default function ExcelToDBPage() {
       } else {
         setDbResponse("Error al ingresar datos: " + data.error);
       }
-    } catch (error) {
-      setDbResponse("Error al comunicarse con el servidor.");
+    } catch (_error) {
+      logger.error("Error al leer el archivo Excel:", _error);
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export default function ExcelToDBPage() {
 
   return (
     <div className="container my-5 position-relative">
-      {/* Contenedor principal de la tarjeta para subir el Excel */}
+      {/* Tarjeta para subir el Excel */}
       <div className="card shadow-sm">
         <div className="card-header bg-secondary text-white text-center py-3">
           <h3 className="mb-0">Cargar Archivo Excel</h3>
@@ -167,16 +167,13 @@ export default function ExcelToDBPage() {
 
           <div className="mt-4 text-center">
             <Link href="/">
-              <button className="btn btn-outline-info">
-                Volver al Convertor PDF a Excel
-              </button>
+              <button className="btn btn-outline-info">Volver al Convertor PDF a Excel</button>
             </Link>
           </div>
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* INICIO: Overlay de "Sitio en Construcción" */}
+      {/* Overlay de "Sitio en Construcción" */}
       <div
         className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
         style={{ backgroundColor: "rgba(0,0,0,0.8)", zIndex: 9999 }}
@@ -192,8 +189,6 @@ export default function ExcelToDBPage() {
           </Link>
         </div>
       </div>
-      {/* FIN: Overlay de "Sitio en Construcción" */}
-      {/* ======================================================== */}
     </div>
   );
 }

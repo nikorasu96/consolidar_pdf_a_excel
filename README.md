@@ -1,38 +1,51 @@
-# Convertidor PDF a EXCEL
 
-Este proyecto es una aplicación web creada con [Next.js](https://nextjs.org/) (versión 15.2.4) utilizando TypeScript y Bootstrap. Su funcionalidad principal es la carga de archivos PDF, su validación y la conversión de los datos extraídos a un archivo Excel consolidado.
+
+# Conversor PDF a Excel
+
+**Conversor PDF a Excel** es una aplicación desarrollada con Next.js y TypeScript que permite convertir archivos PDF a un documento Excel. Soporta diversos formatos de PDF, incluyendo:
+
+- Certificado de Homologación
+- Certificado de Revisión Técnica (CRT)
+- SOAP (Seguro Obligatorio)
+- Permiso de Circulación
+
+La aplicación extrae datos relevantes de los PDFs utilizando extractores específicos, valida la información y genera un Excel que incluye tanto los datos extraídos como (opcionalmente) estadísticas del procesamiento. Además, se utiliza Server-Sent Events (SSE) para notificar en tiempo real el progreso del procesamiento.
+
+---
 
 ## Características
 
-- **Carga de archivos PDF:** Permite seleccionar múltiples archivos y valida que sean PDFs y que no excedan el tamaño máximo configurado.
-- **Procesamiento y extracción de datos:** Utiliza `pdf2json` para extraer información de los PDFs.
-- **Generación de archivo Excel:** Con los datos extraídos se genera un archivo Excel utilizando `xlsx-populate`.
-- **Limitación de concurrencia:** Procesa hasta 3 PDFs de forma simultánea gracias a `p-limit`.
+- **Extracción y Validación de Datos:**  
+  Cada formato de PDF cuenta con un extractor especializado que utiliza expresiones regulares para obtener y validar campos críticos.
 
-## Dependencias necesarias
+- **Generación de Excel:**  
+  Los datos se organizan en una hoja de Excel, con una hoja adicional opcional para mostrar estadísticas (totales procesados, éxitos, fallos y detalles de archivos fallidos).
 
-El proyecto utiliza las siguientes dependencias:
+- **Feedback en Tiempo Real:**  
+  Se informa al usuario sobre el progreso del procesamiento de los PDFs mediante SSE, permitiendo visualizar actualizaciones y tiempos estimados.
 
-- **Next.js:** Framework para React.
-- **React y React-DOM:** Para la renderización de componentes.
-- **Bootstrap:** Framework CSS para el diseño.
-- **TypeScript:** Para el tipado estático.
-- **pdf2json:** Para parsear y extraer datos de PDFs.
-- **xlsx-populate:** Para la creación y manipulación de archivos Excel.
-- **p-limit:** Para limitar la concurrencia en el procesamiento de PDFs.
+- **Interfaz de Usuario Intuitiva:**  
+  Basada en React, facilita la carga de archivos mediante arrastrar y soltar, selección de formato y vista previa de los resultados.
 
-También se utilizan herramientas de desarrollo y testing:
+- **Pruebas Automatizadas:**  
+  Cuenta con una robusta suite de tests con Jest y ESLint para mantener la calidad del código y la estabilidad del proyecto.
 
-- **Jest:** Para pruebas unitarias.
-- **ts-jest:** Transformador de TypeScript para Jest.
+---
 
 ## Instalación
+
+### Requisitos
+
+- **Node.js y npm:**  
+  Asegúrate de tener instaladas versiones compatibles con Next.js.
+
+### Pasos
 
 1. **Clona el repositorio:**
 
    ```bash
-   git clone https://tu-repositorio-url.git
-   cd my-next-project
+   git clone https://github.com/tu_usuario/tu_repositorio.git
+   cd tu_repositorio
    ```
 
 2. **Instala las dependencias:**
@@ -41,83 +54,86 @@ También se utilizan herramientas de desarrollo y testing:
    npm install
    ```
 
-## Configuración
+3. **Configura las variables de entorno:**  
+   Crea un archivo `.env.local` en la raíz del proyecto y define, al menos, la variable:
+   
+   ```env
+   NEXT_PUBLIC_MAX_FILE_SIZE=5242880
+   ```
+   
+   (Puedes ajustar este valor según tus necesidades.)
 
-### Variables de entorno
+---
 
-Crea un archivo `.env.local` en la raíz del proyecto y agrega la siguiente línea para definir el tamaño máximo permitido para los archivos (en bytes):
+## Uso
 
-```env
-NEXT_PUBLIC_MAX_FILE_SIZE=5242880
-```
+### En Desarrollo
 
-### Definiciones de tipos
+1. **Inicia el servidor de desarrollo:**
 
-Se incluye un archivo `global.d.ts` para declarar el módulo `xlsx-populate` y evitar errores de tipado en TypeScript.
+   ```bash
+   npm run dev
+   ```
 
-## Scripts disponibles
+2. Abre la aplicación en [http://localhost:3000](http://localhost:3000).
 
-### Desarrollo
+3. **Carga y Conversión:**  
+   - Selecciona o arrastra los archivos PDF a la interfaz.
+   - Selecciona el formato correspondiente mediante los botones disponibles.
+   - Observa el progreso en tiempo real y, al finalizar, visualiza una vista previa del Excel.
+   - Descarga el archivo Excel generado haciendo clic en el botón correspondiente.
 
-Ejecuta la aplicación en modo desarrollo:
+### Ejecución de Pruebas
 
-```bash
-npm run dev
-```
-
-### Construcción
-
-Construye la aplicación para producción:
-
-```bash
-npm run build
-```
-
-### Inicio en producción
-
-Inicia la aplicación en modo producción:
-
-```bash
-npm run start
-```
-
-### Pruebas
-
-Ejecuta las pruebas unitarias con Jest:
+Para ejecutar todos los tests automatizados, utiliza:
 
 ```bash
 npm run test
 ```
 
-## Estructura del proyecto
+---
 
-```bash
-src/
-├── app/
-│   ├── layout.tsx         # Layout base de la aplicación
-│   ├── page.tsx           # Página principal (carga y conversión)
-│   └── api/
-│       └── convert/
-│           └── route.ts   # Endpoint para conversión de PDFs a Excel
-├── components/
-│   └── FileUpload.tsx     # Componente reutilizable
-├── utils/
-│   ├── fileUtils.ts       # Utilidades para manejo de archivos
-│   ├── pdfUtils.ts        # Utilidades para procesamiento de PDFs
-│   └── excelUtils.ts      # Utilidades para generación de Excel
-tests/                     # (Opcional) Archivos de pruebas unitarias
-```
+## Arquitectura del Proyecto
 
-## Notas adicionales
+El proyecto se organiza en las siguientes áreas:
 
-- **Lectura de PDFs:** Se utiliza la librería `pdf2json` para extraer el texto. Asegúrate de que el contenido esté en un formato legible por la librería.
-- **Generación de Excel:** Se realiza con `xlsx-populate`, que permite manipular hojas de cálculo programáticamente.
-- **Concurrencia:** El procesamiento se limita a 3 PDFs simultáneos con `p-limit` para evitar saturar el servidor.
+- **Frontend:**  
+  Implementado en React, con componentes reutilizables como:
+  - `FileUpload` y `Parent` para la carga de archivos.
+  - `InstructionsModal` para mostrar instrucciones al usuario.
+  - `app/page.tsx` que gestiona el flujo de carga, procesamiento y visualización.
 
-## Contribuciones
+- **Backend/API:**  
+  - La ruta API en `app/api/convert/route.ts` recibe los archivos y el formato seleccionado.
+  - Procesa los PDFs de forma concurrente (usando `p-limit`) y envía actualizaciones en tiempo real mediante SSE.
 
-Las contribuciones son bienvenidas. Si encuentras algún error o tienes sugerencias, por favor crea un issue o envía un pull request.
+- **Extractores y Utilidades:**  
+  - Los extractores (en la carpeta `extractors/`) se encargan de extraer datos específicos de cada formato.
+  - Las utilidades en `utils/` incluyen funciones para parseo, validaciones, generación del Excel y logging.
+
+- **Pruebas:**  
+  - Test unitarios escritos en Jest y configurados en `jest.config.js` para asegurar la calidad del código.
+
+---
+
+## Contribución
+
+¡Las contribuciones son bienvenidas! Para contribuir:
+
+1. Haz un _fork_ del repositorio.
+2. Crea una rama (_branch_) para tu mejora o corrección.
+3. Envía un _pull request_ describiendo los cambios realizados.
+
+---
 
 ## Licencia
 
-Este proyecto se distribuye bajo la licencia MIT.
+Este proyecto está bajo la licencia [MIT](LICENSE).
+
+---
+
+## Contacto
+
+Si tienes alguna duda o sugerencia, puedes contactarme a través de [tu_email@ejemplo.com](mailto:tu_email@ejemplo.com).
+
+---

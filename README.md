@@ -132,8 +132,4 @@ Este proyecto está bajo la licencia [MIT](LICENSE).
 
 ---
 
-## Contacto
-
-Si tienes alguna duda o sugerencia, puedes contactarme a través de [tu_email@ejemplo.com](mailto:tu_email@ejemplo.com).
-
 ---
